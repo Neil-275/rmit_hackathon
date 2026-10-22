@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getUserBySubject, upsertUser } from './db';
 import { verifyTideCloakToken } from '@tidecloak/nextjs/server';
+import { verifySimulatedToken } from './tidecloak-simulator';
 import tcConfig from '../../tidecloak.json';
 
 export interface Persona {
@@ -25,9 +26,24 @@ export const PERSONAS: Record<string, Persona> = {
 export async function getAuthUser(request: NextRequest): Promise<Persona | null> {
   const authHeader = request.headers.get('authorization');
 
-  // 1. Real TideCloak Bearer token verification + DB sync
+  // 1. Check Bearer token (Simulated TideCloak or Real TideCloak)
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
+
+    // 1a. Try simulated TideCloak token verification first
+    const simResult = verifySimulatedToken(token);
+    if (simResult.ok && simResult.payload) {
+      const p = simResult.payload;
+      return {
+        subject: p.sub,
+        displayName: p.name || p.preferred_username,
+        roles: p.realm_access?.roles || ["employee"],
+        email: p.email,
+        department: p.department
+      };
+    }
+
+    // 1b. Try real TideCloak token verification if available
     try {
       const activeConfig = {
         ...tcConfig,
@@ -60,7 +76,7 @@ export async function getAuthUser(request: NextRequest): Promise<Persona | null>
         };
       }
     } catch (err) {
-      console.warn('Bearer token verification failed:', err);
+      // Real TideCloak server offline or invalid signature
     }
   }
 

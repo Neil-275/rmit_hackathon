@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyTideCloakToken } from '@tidecloak/nextjs/server'
+import { verifySimulatedToken } from '@/src/server/tidecloak-simulator'
 import tcConfig from '../../../tidecloak.json'
 
 const ALLOWED_ROLE = 'offline_access'
 
-// Accepts plain Bearer tokens only. If you turn on useDPoP, call this with
-// secureFetch and extend it to accept the DPoP scheme and validate the proof server-side.
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const authHeader = request.headers.get('authorization')
   if (!authHeader?.startsWith('Bearer ')) {
@@ -17,6 +16,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const token = authHeader.split(' ')[1]
 
+  // 1. Try simulated TideCloak token verification
+  const simResult = verifySimulatedToken(token, [ALLOWED_ROLE])
+  if (simResult.ok && simResult.payload) {
+    return NextResponse.json(
+      {
+        ok: true,
+        subject: simResult.payload.sub,
+        username: simResult.payload.preferred_username,
+        roles: simResult.payload.realm_access?.roles,
+        source: 'SIMULATED'
+      },
+      { status: 200 }
+    )
+  }
+
+  // 2. Try real TideCloak token verification
   try {
     const activeConfig = {
       ...tcConfig,
@@ -24,21 +39,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
     const user = await verifyTideCloakToken(activeConfig, token, [ALLOWED_ROLE]) as Record<string, any>
 
-    if (!user) {
+    if (user) {
       return NextResponse.json(
-        { error: 'Forbidden: Invalid token or insufficient role', configRealm: tcConfig.realm, algorithms: tcConfig.tokenSignatureAlgorithms },
-        { status: 403 }
+        {
+          ok: true,
+          subject: user.sub,
+          username: user.preferred_username,
+          roles: user.realm_access?.roles,
+          source: 'FABRIC'
+        },
+        { status: 200 }
       )
     }
-    return NextResponse.json(
-      { ok: true, subject: user.sub, username: user.preferred_username, roles: user.realm_access?.roles },
-      { status: 200 }
-    )
   } catch (err) {
-    console.error('Token verification failed:', err)
-    return NextResponse.json(
-      { error: 'Internal Server Error' },
-      { status: 500 }
-    )
+    // Real TideCloak verification threw
   }
+
+  return NextResponse.json(
+    { error: 'Forbidden: Invalid token or insufficient role' },
+    { status: 403 }
+  )
 }

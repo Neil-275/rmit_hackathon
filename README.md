@@ -182,3 +182,14 @@ curl -i -X POST -H "X-Dev-Persona: minh" http://localhost:3000/api/v1/ideas/idea
 | **Conflict-of-Interest & Jury Quorum** | **VERIFIED (APP)** | Exclusion of accused members, dynamic calculation of $N \in [3, 5]$, threshold $T = \lceil 2N/3 \rceil$, one-strike veto. |
 | **Audit Log Provenance** | **VERIFIED (APP)** | Explicit tagging of event sources as `[FABRIC]`, `[APP]`, or `[SIMULATED]`. |
 | **On-Chain VRK Minting via `tcinit.sh`** | **PENDING (SIMULATED)** | Tide testnet ORK node network responses during `tcinit.sh` were intermittent, so decentralized envelope unmasking is simulated via client-sealed envelopes while production token verification runs live. |
+
+---
+
+## 11. Tide MCP Integration Plan & Simulation Mode
+
+Per hackathon guidance for upstream TideCloak availability, VoiceVault provides a complete **TideCloak Architecture & Integration Plan** formulated with Tide MCP guidelines:
+- **Comprehensive Plan**: See [`docs/tidecloak-mcp-plan.md`](./docs/tidecloak-mcp-plan.md) for full architecture diagrams, security boundary definitions, and ORK key-splitting specifications.
+- **Simulated Sign-in & Token Issuance**: `POST /api/v1/auth/token` simulates TideCloak OAuth2 token issuance, embedding standard Keycloak realm claims and role memberships (`employee`, `manager`, `director`, `juror`).
+- **Simulated & Live Access Checks**: `/api/protected` and `/api/v1/*` routes dynamically enforce signatures, expiration, and role permissions across both simulated JWT tokens and live TideCloak tokens.
+- **Zero-Dependency Execution**: The complete prototype, tests (`npm run test:p0`, `npm run test:e2e`), and frontend UI run 100% locally with zero external network or container dependencies.
+
