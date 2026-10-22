@@ -9,7 +9,7 @@ npm install
 npm run db:generate                 # sinh Prisma client (output mặc định node_modules/.prisma)
 # .env (gitignore): DATABASE_URL="file:./local/dev.db"   -> prisma/local/dev.db
 npm run db:push                     # tạo schema SQLite
-npm run test:p1                     # vitest, 70 test; integration dùng file SQLite tạm riêng mỗi lần chạy
+npm run test:p1                     # vitest, 72 test; integration dùng file SQLite tạm riêng mỗi lần chạy
 npm run build:bridge                # esbuild IIFE -> public/integration/runtime.generated.js (gitignore)
 npx tsc -p tests/p1/tsconfig.json   # type-check (cần typescript 5.8.3, branch P0 đã có)
 ```
