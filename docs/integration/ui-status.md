@@ -9,6 +9,7 @@ before merging with `work/server-policy`** — the two "v1" contracts are not co
 | Item | Who | Started | Files |
 | --- | --- | --- | --- |
 | Fixing findings from the code review of this branch | UI (Tam) | 2026-10-22 | `public/ui/**` |
+| Exploratory testing: council lifecycle, juror unmask flow, error scenarios, keyboard, mobile | UI (Tam) | 2026-10-22 | `public/ui/**` |
 
 Updated and pushed after every finished unit of work. Claim a row here (and push) before starting something new.
 
