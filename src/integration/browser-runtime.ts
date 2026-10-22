@@ -120,7 +120,7 @@ export function createVoiceVaultLive(options: LiveOptions) {
   async function getSession(): Promise<ApiResult<SessionView>> {
     if (!auth.session().authenticated) return ok(sessionView());
     const me = await request<SessionView>("GET", "/me");
-    return me.ok || me.error.code !== "UNAUTHENTICATED" ? me : ok(sessionView());
+    return me;
   }
 
   async function identityFor(binding: ResourceBinding, tag: IdentityEnvelope["tag"], contact?: string | null): Promise<IdentityEnvelope | null> {

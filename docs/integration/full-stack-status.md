@@ -22,6 +22,15 @@ Do not merge into master or another teammate's branch without reviewing the fina
 - Created an isolated worktree; no changes to the original main checkout.
 - Read `HANDOFF-2026-10-22.md` and compared the newer P1 CAS fix.
 
+## Completed unit: session and bridge
+
+- API 401 now propagates UNAUTHENTICATED instead of returning a stale signed-in session.
+- Generated bundle exports createVoiceVaultLiveRuntime, wraps the API with the UI mapper, and requires explicit adapters.
+- No auth/crypto stubs are exported or selected by the production bridge.
+- RED: all 3 new regressions failed before the fix. GREEN: 8/8 session/adapter tests.
+- Bridge --check builds in a temporary directory and verifies the bootstrap factory; passed.
+- Full P0/P1/build still pending dependency download; this unit does not claim LIVE Tide verification.
+
 ## Next
 
 1. Commit verified UI corrections and their regression tests on `work/ui-static`.
