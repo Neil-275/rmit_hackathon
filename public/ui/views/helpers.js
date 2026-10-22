@@ -58,16 +58,27 @@
   };
   V.icon=function(name,size){var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('width',size||20);svg.setAttribute('height',size||20);svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.65');svg.setAttribute('stroke-linecap','round');svg.setAttribute('stroke-linejoin','round');svg.setAttribute('aria-hidden','true');(paths[name]||paths.document).forEach(function(d){var p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d',d);svg.appendChild(p);});return svg;};
   V.button=function(label,fn,attrs){return V.el('button',Object.assign({type:'button',class:'button',onclick:fn},attrs||{}),label);};
-  V.labels={UNDER_REVIEW:'Under review',ENDORSED:'Endorsed',APPROVED:'Approved',REJECTED:'Rejected',INVESTIGATING:'Under investigation',AWAITING_ELIGIBLE_JURY:'Awaiting eligible jury',COLLECTING:'Collecting votes',READY:'Ready',GRANTED:'Access granted',APPLIED:'Applied',DENIED:'Denied',EXPIRED:'Expired',STALE:'Version conflict',APPLYING:'Applying'};
-  V.badge=function(status){var tone=['APPROVED','READY','APPLIED','GRANTED'].includes(status)?'green':['REJECTED','DENIED'].includes(status)?'red':['EXPIRED','STALE','AWAITING_ELIGIBLE_JURY'].includes(status)?'amber':'purple';return V.el('span',{class:'badge '+tone},V.el('span',{class:'badge-dot'}),V.labels[status]||status);};
+  V.labels={RESOLVED:'Resolved',UNDER_REVIEW:'Under review',ENDORSED:'Endorsed',APPROVED:'Approved',REJECTED:'Rejected',INVESTIGATING:'Under investigation',AWAITING_ELIGIBLE_JURY:'Awaiting eligible jury',COLLECTING:'Collecting votes',READY:'Ready',GRANTED:'Access granted',APPLIED:'Applied',DENIED:'Denied',EXPIRED:'Expired',STALE:'Version conflict',APPLYING:'Applying'};
+  // READY (threshold met) must never look like APPLIED/GRANTED (completed); APPLYING is its own state.
+  var tones={APPROVED:'green',APPLIED:'green',GRANTED:'green',RESOLVED:'green',READY:'ready',APPLYING:'neutral',REJECTED:'red',DENIED:'red',EXPIRED:'amber',STALE:'amber',AWAITING_ELIGIBLE_JURY:'amber'};
+  V.badge=function(status){return V.el('span',{class:'badge '+(tones[status]||'purple'),'data-status':status},V.el('span',{class:'badge-dot'}),V.labels[status]||status);};
+  var sources={APP:['purple','Application check'],FABRIC:['green','TideCloak policy'],QEA:['violet','Governance approval'],CLIENT:['neutral','Browser check'],SIMULATED:['amber','Preview only']};
+  V.source=function(enforcement){var s=sources[enforcement]||['neutral','Unknown source'];return V.el('span',{class:'tag '+s[0],title:s[1]},enforcement||'UNKNOWN');};
+  V.errorText=function(error){return error.message+' ('+error.code+(error.enforcement?' · '+error.enforcement:'')+')';};
+  V.more=function(page){return page&&page.nextCursor?V.el('p',{class:'muted more-note'},'Showing the first '+page.items.length+' records. More exist, but paging is not available yet.'):null;};
   V.tag=function(label,kind){return V.el('span',{class:'tag '+(kind||'')},label);};
   V.categories={PROCESS:'Process',CULTURE:'Culture',SUSTAINABILITY:'Sustainability',PRODUCT:'Product'};
   V.avatar=function(name,small){var initials=String(name||'?').split(' ').filter(Boolean).slice(0,2).map(function(s){return s[0];}).join('').toUpperCase();return V.el('span',{class:'avatar'+(small?' small':'')},initials);};
   V.date=function(value){return new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'2-digit',timeZone:'Asia/Bangkok'}).format(new Date(value));};
+  V.dateTime=function(value){return new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZone:'Asia/Bangkok'}).format(new Date(value));};
+  V.srOnly=function(text){return V.el('span',{class:'sr-only'},text);};
+  // Thrown by form input builders; its message is shown to the user as-is.
+  V.userError=function(message){var error=new Error(message);error.userFacing=true;return error;};
+  V.randomId=function(){return Array.from(global.crypto.getRandomValues(new Uint8Array(16)),function(b){return b.toString(16).padStart(2,'0');}).join('');};
   V.matches=function(value,query){function normalize(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\u0111/g,'d').toLowerCase();}return normalize(value).includes(normalize(query));};
   V.empty=function(title,detail,action){return V.el('div',{class:'empty-state'},V.el('span',{class:'empty-icon'},V.icon('document',27)),V.el('h3',{},title),V.el('p',{},detail),action);};
   V.sectionTitle=function(title,aside){return V.el('div',{class:'section-title'},V.el('h2',{},title),aside);};
-  V.sealed=function(){return V.el('span',{class:'sealed'},V.icon('lock',13),'Identity sealed');};
+  V.sealed=function(status){return V.el('span',{class:'sealed'},V.icon('lock',13),status==='REJECTED'?'Identity is not published after rejection':'Identity sealed');};
   V.field=function(label,name,attrs,kind){var input=V.el(kind||'input',Object.assign({name:name,id:'field-'+name},attrs||{}));return {input:input,node:V.el('label',{class:'field',for:'field-'+name},V.el('span',{},label),input)};};
   global.VoiceVaultView=V;
 }(window));

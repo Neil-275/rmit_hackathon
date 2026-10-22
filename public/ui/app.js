@@ -8,11 +8,17 @@
     var init;try{init=await runtime.init();}catch(error){startupError('POLICY_UNAVAILABLE');return;}
     if(!init||!init.ok){startupError(init&&init.error?init.error.code:'CONTRACT_MISMATCH');return;}
     var state={page:navigation.some(function(p){return '#'+p.id===location.hash;})?location.hash.slice(1):'overview',search:'',session:init.data,ideas:{items:[]},reports:{items:[]},changes:{items:[]},audit:{items:[]},council:null,directory:{people:[]},results:{}};
-    var revision=0,toastTimer;
+    var revision=0,toastTimer,acting=false;
     var ctx={runtime:runtime,state:state};
     ctx.notify=function(message,isError){var region=document.getElementById('toast-region');region.replaceChildren(h('div',{class:'toast'+(isError?' is-error':'')},V.icon(isError?'alert':'check',18),h('span',{},message)));clearTimeout(toastTimer);toastTimer=setTimeout(function(){region.replaceChildren();},5000);};
     ctx.call=async function(method,args){try{if(typeof runtime[method]!=='function')throw new Error('CONTRACT_MISMATCH');var result=await runtime[method].apply(runtime,args||[]);if(!result||result.contractVersion!=='v1'||typeof result.ok!=='boolean')throw new Error('CONTRACT_MISMATCH');return result;}catch(error){return {ok:false,contractVersion:'v1',error:{code:'POLICY_UNAVAILABLE',message:'The connection is unavailable. Please try again later.',enforcement:runtime.mode==='MOCK'?'SIMULATED':'APP'}};}};
-    ctx.act=async function(method,args){V.closeDialog();var result=await ctx.call(method,args);if(result.ok){ctx.notify('Your action has been recorded.');await ctx.refresh();}else ctx.notify(result.error.message,true);return result;};
+    // One action at a time; the button shows progress and the refresh re-renders it either way.
+    ctx.act=async function(method,args,button,busyLabel){
+      if(acting)return null;acting=true;
+      if(button){button.disabled=true;button.setAttribute('aria-busy','true');if(busyLabel)button.textContent=busyLabel;}
+      try{V.closeDialog();var result=await ctx.call(method,args);if(result.ok)ctx.notify('Your action has been recorded.');else ctx.notify(V.errorText(result.error),true);await ctx.refresh({keep:true});return result;}
+      finally{acting=false;}
+    };
     var root=document.getElementById('app');root.replaceChildren();
     var sidebar=h('aside',{class:'sidebar',id:'sidebar','aria-label':'Main navigation'},h('a',{class:'brand',href:'#overview'},h('span',{class:'brand-mark'},'V'),h('span',{},h('strong',{},'VoiceVault'),h('small',{},'Every voice matters'))));
     var nav=h('nav',{class:'navigation','aria-label':'Workspace pages'});navigation.forEach(function(item){nav.append(V.button([V.icon(item.icon,20),h('span',{},item.label),item.id==='ideas'?h('span',{class:'nav-dot'}):null],function(){ctx.navigate(item.id);},{class:'nav-button','data-page':item.id}));});
@@ -35,7 +41,7 @@
         banner.replaceChildren(V.icon(connected?'check':'lock',16),h('span',{},connected?'LIVE — Runtime connected':'LIVE — Sign in required'),V.tag('LIVE'));
       }
       if(runtime.mode==='MOCK'&&runtime.simulation){
-        var persona=h('select',{id:'persona-select','aria-label':'Choose a demo persona'},runtime.simulation.personas.map(function(p){return h('option',{value:p.id},p.displayName+' · '+p.title);}));persona.value=state.session.subject||'an';
+        var persona=h('select',{id:'persona-select','aria-label':'Choose a demo persona'},state.session.authenticated?null:h('option',{value:'',disabled:true},'Signed out'),runtime.simulation.personas.map(function(p){return h('option',{value:p.id},p.displayName+' · '+p.title);}));persona.value=state.session.subject||'';
         persona.addEventListener('change',async function(){closeSensitive();await ctx.call('login',[persona.value]);await ctx.refresh();});
         var scenario=h('select',{id:'scenario-select','aria-label':'Choose a simulation scenario'},runtime.simulation.scenarios.map(function(s){return h('option',{value:s.id},s.label);}));scenario.value=runtime.simulation.getScenario();
         scenario.addEventListener('change',function(){closeSensitive();runtime.simulation.setScenario(scenario.value);ctx.refresh();});
@@ -46,22 +52,29 @@
       var current=navigation.find(function(p){return p.id===state.page;});
       document.getElementById('page-title').textContent=current.label;document.getElementById('page-description').textContent=current.description;document.getElementById('breadcrumb-current').textContent=current.label;document.title=current.label+' · VoiceVault';
       document.querySelectorAll('[data-page]').forEach(function(button){button.classList.toggle('active',button.dataset.page===state.page);if(button.dataset.page===state.page)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');});
-      var content=document.getElementById('page-content');
+      var content=document.getElementById('page-content');content.dataset.view=state.page;content.removeAttribute('aria-busy');
+      search.closest('.search-box').hidden=state.page==='overview';
       if(!state.session.authenticated){content.replaceChildren(V.empty('Sign in to continue',runtime.mode==='MOCK'?'Choose a demo persona to explore the preview.':'Sign in with your organization account to continue.',V.button('Sign in',async function(){await ctx.call('login',[]);await ctx.refresh();},{class:'button primary'})));return;}
       var key={overview:'ideas',ideas:'ideas',reports:'reports',votes:'reports',council:'council',audit:'audit'}[state.page];
       var result=state.results[key];
-      if(result&&!result.ok){content.replaceChildren(h('div',{class:'error-state',role:'alert'},V.icon('alert',26),h('h2',{},'Unable to load content'),h('p',{},result.error.message),V.tag(result.error.code,'amber'),V.button('Try again',ctx.refresh,{class:'button secondary'})));return;}
+      if(result&&!result.ok){content.replaceChildren(h('div',{class:'error-state',role:'alert'},V.icon('alert',26),h('h2',{},'Unable to load content'),h('p',{},result.error.message),V.tag(result.error.code,'amber'),' ',V.source(result.error.enforcement),V.button('Try again',function(){ctx.refresh();},{class:'button secondary'})));return;}
       content.replaceChildren(V[state.page](ctx));
     }
-    ctx.refresh=async function(){
+    // keep:true (after an action on the same page) leaves current content visible to avoid a scroll jump.
+    // Session and page changes always clear first so one persona's data never lingers for another.
+    ctx.refresh=async function(options){
       var ticket=++revision;document.body.dataset.appState='loading';
-      var content=document.getElementById('page-content');content.replaceChildren(h('div',{class:'loading-state',role:'status'},h('span',{class:'spinner'}),'Updating the workspace...'));
+      var content=document.getElementById('page-content');
+      if(options&&options.keep===true&&content.dataset.view===state.page)content.setAttribute('aria-busy','true');
+      else content.replaceChildren(h('div',{class:'loading-state',role:'status'},h('span',{class:'spinner'}),'Updating the workspace...'));
       var sessionResult=await ctx.call('getSession',[]);if(ticket!==revision)return;
       state.session=sessionResult.ok?sessionResult.data:{authenticated:false,displayName:'Signed out',capabilities:{}};
       var names=['ideas','reports','council','changes','audit','directory'],methods=['listIdeas','listReports','getCouncil','listCouncilChanges','listAudit','getDirectory'];
       if(state.session.authenticated){var results=await Promise.all(methods.map(function(method){return ctx.call(method,[{}]);}));if(ticket!==revision)return;names.forEach(function(name,index){state.results[name]=results[index];state[name]=results[index].ok?results[index].data:(['ideas','reports','changes','audit'].includes(name)?{items:[]}:name==='directory'?{people:[]}:null);});}
       else {state.ideas={items:[]};state.reports={items:[]};state.changes={items:[]};state.audit={items:[]};state.council=null;state.directory={people:[]};state.results={};}
-      controls();renderPage();document.body.dataset.page=state.page;document.body.dataset.persona=state.session.subject||'';document.body.dataset.appState='ready';
+      controls();renderPage();
+      if(!document.getElementById('app-dialog').open&&(document.activeElement===document.body||!document.activeElement))document.getElementById('page-content').focus({preventScroll:true});
+      document.body.dataset.page=state.page;document.body.dataset.persona=state.session.subject||'';document.body.dataset.appState='ready';
     };
     ctx.navigate=function(page){if(!navigation.some(function(p){return p.id===page;}))return;closeSensitive();state.page=page;state.search='';search.value='';if(location.hash!=='#'+page)location.hash=page;document.body.classList.remove('nav-open');menu.setAttribute('aria-expanded','false');ctx.refresh();window.scrollTo(0,0);};
     global.onhashchange=function(){var page=location.hash.slice(1);if(page!==state.page)ctx.navigate(page);};

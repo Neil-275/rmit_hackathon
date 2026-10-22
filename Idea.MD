@@ -104,7 +104,7 @@ Characters: **An** (engineer), **Binh** (team lead), **Chi** (director), a three
 
 1. **Sealed-Credited Idea (dual protection):**
    - **Submission & review:** the author's identity is encrypted (sealed). Superiors review blindly, entirely on the idea's merit, without identity bias.
-   - **If rejected:** the identity **is never decrypted** → employees need not fear ridicule or being judged poorly for ideas that are not yet feasible.
+   - **If rejected:** the identity **is not published** (no reveal request exists for rejected ideas) → employees need not fear ridicule or being judged poorly for ideas that are not yet feasible.
    - **If approved:** TideCloak policy conditions are satisfied → the system unlocks the original author's signature and clearly records: *"Originator: A · Endorser: B"*. B cannot change or remove A's name.
 2. **Protected Report with a conflict-free random jury (CoI-Free Random Jury):**
    - When misconduct is reported, if an accused person belongs to the Ethics Pool, the system **automatically excludes** that person.

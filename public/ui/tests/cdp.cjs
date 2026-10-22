@@ -5,7 +5,8 @@ const path = require('node:path');
 const delay = ms => new Promise(resolve => setTimeout(resolve,ms));
 
 async function launchBrowser() {
-  const candidates = [process.env.VOICEVAULT_CHROME,'C:/Program Files/Google/Chrome/Application/chrome.exe','C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].filter(Boolean);
+  // Windows (system and per-user installs), then macOS, then Linux.
+  const candidates = [process.env.VOICEVAULT_CHROME,'C:/Program Files/Google/Chrome/Application/chrome.exe',process.env.LOCALAPPDATA&&path.join(process.env.LOCALAPPDATA,'Google/Chrome/Application/chrome.exe'),'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe','/Applications/Google Chrome.app/Contents/MacOS/Google Chrome','/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge','/usr/bin/google-chrome','/usr/bin/chromium'].filter(Boolean);
   const executable = candidates.find(file => fs.existsSync(file));
   if (!executable) throw new Error('An existing Chrome/Edge is required for browser tests. Set VOICEVAULT_CHROME.');
   const tempRoot = path.resolve(os.tmpdir());

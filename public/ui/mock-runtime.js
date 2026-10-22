@@ -25,7 +25,8 @@
       POLICY_UNAVAILABLE:'The LIVE runtime and policy are not connected. The identity remains sealed.',
       INSUFFICIENT_ELIGIBLE_JURORS:'There are not enough eligible members, or no independent representative is available.',
       CONSENT_REQUIRED:'The author has not consented to public credit after approval.',
-      ALREADY_VOTED:'You have already voted in this round.', NOT_FOUND:'The requested record was not found.'
+      ALREADY_VOTED:'You have already voted in this round.', NOT_FOUND:'The requested record was not found.',
+      IDEMPOTENCY_CONFLICT:'This retry does not match the report already submitted. Close the form and check the Reports page.'
     };
     function log(action, targetId, outcome) {
       var anonymous=['IDEA_SUBMITTED','REPORT_SUBMITTED'].includes(action);
@@ -85,8 +86,8 @@
       if(!choices.length)return null;
       return choices[randomInt(0,choices.length)].map(function(m){return {id:m.subject,displayName:person(m.subject).displayName,independent:m.independent};});
     }
-    function newRound(resourceId,operation,voters,recipientSubject,roundId) {
-      var round={id:roundId||id('vote'),resourceId:resourceId,operation:operation,voters:voters,voterCount:voters.length,quorumRequired:Math.ceil(2*voters.length/3),councilVersion:council.version,recipientSubject:recipientSubject,status:'COLLECTING',approvals:[],expiresAt:new Date(now()+86400000).toISOString()};
+    function newRound(resourceId,operation,voters,recipientSubject,roundId,purpose) {
+      var round={id:roundId||id('vote'),purpose:purpose||null,resourceId:resourceId,operation:operation,voters:voters,voterCount:voters.length,quorumRequired:Math.ceil(2*voters.length/3),councilVersion:council.version,recipientSubject:recipientSubject,status:'COLLECTING',approvals:[],expiresAt:new Date(now()+86400000).toISOString()};
       rounds.unshift(round);return round;
     }
     function roundView(round) {
@@ -95,7 +96,7 @@
       var independent=approved.some(function(a){return round.voters.some(function(v){return v.id===a.voterId&&v.independent;});});
       var expired=Date.parse(round.expiresAt)<=now()&&['COLLECTING','READY','GRANTED'].includes(round.status);
       var state=scenario==='EXPIRED'||expired?'EXPIRED':round.status;
-      return {id:round.id,resourceId:round.resourceId,operation:round.operation,voters:round.voters,voterCount:round.voterCount,quorumRequired:round.quorumRequired,councilVersion:round.councilVersion,status:state,approvalCount:approved.length,validApprovals:round.approvals,independentApproved:independent,expiresAt:round.expiresAt,recipientSubject:round.recipientSubject,recipientName:person(round.recipientSubject).displayName,canVote:!!current()&&state==='COLLECTING'&&round.voters.some(function(v){return v.id===actorId;})&&!round.approvals.some(function(a){return a.voterId===actorId;}),canReveal:!!current()&&round.recipientSubject===actorId&&['READY','GRANTED'].includes(state)};
+      return {id:round.id,resourceId:round.resourceId,operation:round.operation,voters:round.voters,voterCount:round.voterCount,quorumRequired:round.quorumRequired,councilVersion:round.councilVersion,purpose:round.purpose,status:state,approvalCount:approved.length,validApprovals:round.approvals,independentApproved:independent,expiresAt:round.expiresAt,recipientSubject:round.recipientSubject,recipientName:person(round.recipientSubject).displayName,canVote:!!current()&&state==='COLLECTING'&&round.voters.some(function(v){return v.id===actorId;})&&!round.approvals.some(function(a){return a.voterId===actorId;}),canReveal:!!current()&&round.recipientSubject===actorId&&['READY','GRANTED'].includes(state)};
     }
     function ideaView(idea) {
       var p=current();
@@ -119,7 +120,7 @@
     data.ideas.forEach(function(idea){ideas.push(Object.assign({},idea,{version:1,createdAt:new Date(now()-idea.ageHours*3600000).toISOString()}));});
     data.reports.forEach(function(report){
       var voters=report.voterIds.map(function(subject){var m=member(subject);return {id:subject,displayName:person(subject).displayName,independent:m.independent};});
-      var round=newRound(report.id,'REVEAL_REPORT_IDENTITY',voters,report.recipientSubject,'vote-'+report.id);
+      var round=newRound(report.id,'REVEAL_REPORT_IDENTITY',voters,report.recipientSubject,'vote-'+report.id,'Simulated seed request: verify the reporter before legal review.');
       reports.push(Object.assign({},report,{roundId:round.id,version:1,createdAt:new Date(now()-report.ageHours*3600000).toISOString()}));
     });
     audit.push({id:'event-initial',actor:'Simulation system',action:'COUNCIL_INITIALIZED',targetId:'council-v1',outcome:'ALLOWED',enforcement:'SIMULATED',createdAt:new Date(now()-172800000).toISOString()});
@@ -165,7 +166,7 @@
       if(round){if(input&&input.recipientSubject&&input.recipientSubject!==round.recipientSubject)fail('VERSION_CONFLICT');}
       else{
         if(!input||!text(input.purpose,10,2000)||input.recipientSubject!==actorId)fail('INVALID_REQUEST');
-        round=newRound(report.id,'REVEAL_REPORT_IDENTITY',copy(assignment.voters),actorId);report.roundId=round.id;
+        round=newRound(report.id,'REVEAL_REPORT_IDENTITY',copy(assignment.voters),actorId,null,input.purpose.trim());report.roundId=round.id;
         log('UNMASK_REQUEST_CREATED',round.id);
       }
       return {id:round.id,votingRequestId:round.id,voting:roundView(round)};
@@ -199,7 +200,7 @@
       var changed=council.members.filter(function(old){var next=cleaned.find(function(m){return m.subject===old.subject;});return !next||['independent','active','membershipRole'].some(function(key){return old[key]!==next[key];});}).map(function(m){return m.subject;});
       if(!changed.length&&cleaned.length===council.members.length&&policy.minVoters===council.selectionPolicy.minVoters&&policy.maxVoters===council.selectionPolicy.maxVoters)fail('INVALID_REQUEST');
       var voters=select(changed),change={id:id('council'),reason:input.reason.trim(),baseCouncilVersion:council.version,proposedMembers:cleaned,proposedSelectionPolicy:copy(policy),status:'COLLECTING',signature:signature,createdAt:new Date().toISOString()};
-      if(voters)change.votingRequestId=newRound(change.id,'CHANGE_COUNCIL',voters,actorId).id;else change.status='AWAITING_ELIGIBLE_JURY';
+      if(voters)change.votingRequestId=newRound(change.id,'CHANGE_COUNCIL',voters,actorId,null,change.reason).id;else change.status='AWAITING_ELIGIBLE_JURY';
       changes.unshift(change);log('COUNCIL_CHANGE_PROPOSED',change.id);return changeView(change);
     });
     runtime.applyCouncilChange=api(function(changeId,version){
