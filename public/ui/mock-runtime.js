@@ -14,22 +14,22 @@
     var id = function (prefix) { sequence += 1; return 'mock-' + prefix + '-' + sequence; };
     function fail(code, message) { var error = new Error(message || code); error.code = code; throw error; }
     var messages = {
-      UNAUTHENTICATED:'Phiên đăng nhập không còn hiệu lực. Hãy chọn lại nhân vật mô phỏng.',
-      FORBIDDEN:'Phiên hiện tại không có quyền thực hiện thao tác này.',
-      INVALID_REQUEST:'Vui lòng kiểm tra và điền đầy đủ các trường bắt buộc.',
-      VERSION_CONFLICT:'Dữ liệu đã thay đổi. Hãy tải lại trước khi thao tác.',
-      COUNCIL_VERSION_CONFLICT:'Hội đồng đã có phiên bản mới. Phiếu cũ không còn áp dụng.',
-      QUORUM_PENDING:'Chưa đủ phê duyệt hợp lệ, bao gồm thành viên độc lập.',
-      APPROVAL_EXPIRED:'Lượt bỏ phiếu đã hết hạn. Không thể sử dụng phiếu cũ.',
-      INTEGRITY_MISMATCH:'Thông tin không khớp với hồ sơ đã được phê duyệt.',
-      POLICY_UNAVAILABLE:'Runtime LIVE và policy chưa được kết nối. Danh tính tiếp tục được giữ kín.',
-      INSUFFICIENT_ELIGIBLE_JURORS:'Chưa đủ thành viên hợp lệ hoặc thiếu đại diện độc lập.',
-      CONSENT_REQUIRED:'Tác giả chưa đồng ý công khai danh tính khi được duyệt.',
-      ALREADY_VOTED:'Bạn đã bỏ phiếu cho lượt này.', NOT_FOUND:'Không tìm thấy hồ sơ được yêu cầu.'
+      UNAUTHENTICATED:'Your session has expired. Choose a demo persona to continue.',
+      FORBIDDEN:'Your current session is not permitted to perform this action.',
+      INVALID_REQUEST:'Check your input and complete every required field.',
+      VERSION_CONFLICT:'The data has changed. Refresh before trying again.',
+      COUNCIL_VERSION_CONFLICT:'The council has a new version. Votes from the previous version are no longer valid.',
+      QUORUM_PENDING:'More valid approvals are required, including an independent member.',
+      APPROVAL_EXPIRED:'This voting round has expired. Its approvals can no longer be used.',
+      INTEGRITY_MISMATCH:'The request does not match the approved record.',
+      POLICY_UNAVAILABLE:'The LIVE runtime and policy are not connected. The identity remains sealed.',
+      INSUFFICIENT_ELIGIBLE_JURORS:'There are not enough eligible members, or no independent representative is available.',
+      CONSENT_REQUIRED:'The author has not consented to public credit after approval.',
+      ALREADY_VOTED:'You have already voted in this round.', NOT_FOUND:'The requested record was not found.'
     };
     function log(action, targetId, outcome) {
       var anonymous=['IDEA_SUBMITTED','REPORT_SUBMITTED'].includes(action);
-      audit.unshift({id:id('event'),action:action,targetId:targetId,outcome:outcome||'ALLOWED',enforcement:'SIMULATED',actor:anonymous?'Người gửi ẩn danh':current()?current().displayName:'Phiên chưa đăng nhập',createdAt:new Date().toISOString()});
+      audit.unshift({id:id('event'),action:action,targetId:targetId,outcome:outcome||'ALLOWED',enforcement:'SIMULATED',actor:anonymous?'Anonymous submitter':current()?current().displayName:'Unauthenticated session',createdAt:new Date().toISOString()});
     }
     function authenticate() {
       if (!current() || scenario === 'UNAUTHENTICATED') fail('UNAUTHENTICATED');
@@ -48,7 +48,7 @@
         try { return {ok:true,data:copy(await fn.apply(null,args)),requestId:requestId,contractVersion:'v1'}; }
         catch (error) {
           var code = error.code || 'INVALID_REQUEST';
-          return {ok:false,error:{code:code,message:messages[code]||error.message||'Không thể thực hiện thao tác.',enforcement:'SIMULATED',retryable:code==='POLICY_UNAVAILABLE'},requestId:requestId,contractVersion:'v1'};
+          return {ok:false,error:{code:code,message:messages[code]||error.message||'Unable to complete the action.',enforcement:'SIMULATED',retryable:code==='POLICY_UNAVAILABLE'},requestId:requestId,contractVersion:'v1'};
         }
       };
     }
@@ -62,7 +62,7 @@
     }
     function session() {
       var p = current(), authenticated = !!p && scenario !== 'UNAUTHENTICATED';
-      return {authenticated:authenticated,subject:authenticated?p.id:null,displayName:authenticated?p.displayName:'Chưa đăng nhập',initials:authenticated?p.initials:'?',title:authenticated?p.title:'',role:authenticated?p.role:null,capabilities:authenticated?{canSubmit:p.role!=='it_admin',canProposeCouncil:!!member(p.id)||p.role==='it_admin'}:{},organizationId:data.organizationId};
+      return {authenticated:authenticated,subject:authenticated?p.id:null,displayName:authenticated?p.displayName:'Signed out',initials:authenticated?p.initials:'?',title:authenticated?p.title:'',role:authenticated?p.role:null,capabilities:authenticated?{canSubmit:p.role!=='it_admin',canProposeCouncil:!!member(p.id)||p.role==='it_admin'}:{},organizationId:data.organizationId};
     }
     function randomInt(min,max) {
       var range=max-min, values=new Uint32Array(1), limit=Math.floor(4294967296/range)*range;
@@ -114,7 +114,7 @@
     }
     function changeView(change) {
       var round=rounds.find(function(r){return r.id===change.votingRequestId;}),v=roundView(round);
-      return {id:change.id,title:'Cập nhật thành viên hội đồng',reason:change.reason,createdAt:change.createdAt,baseCouncilVersion:change.baseCouncilVersion,status:change.status==='APPLIED'?'APPLIED':v?v.status:'AWAITING_ELIGIBLE_JURY',proposedMembers:change.proposedMembers,proposedSelectionPolicy:change.proposedSelectionPolicy,votingRequestId:change.votingRequestId,voting:v,capabilities:{canApply:!!v&&v.status==='READY'&&round.recipientSubject===actorId}};
+      return {id:change.id,title:'Update council membership',reason:change.reason,createdAt:change.createdAt,baseCouncilVersion:change.baseCouncilVersion,status:change.status==='APPLIED'?'APPLIED':v?v.status:'AWAITING_ELIGIBLE_JURY',proposedMembers:change.proposedMembers,proposedSelectionPolicy:change.proposedSelectionPolicy,votingRequestId:change.votingRequestId,voting:v,capabilities:{canApply:!!v&&v.status==='READY'&&round.recipientSubject===actorId}};
     }
     data.ideas.forEach(function(idea){ideas.push(Object.assign({},idea,{version:1,createdAt:new Date(now()-idea.ageHours*3600000).toISOString()}));});
     data.reports.forEach(function(report){
@@ -122,7 +122,7 @@
       var round=newRound(report.id,'REVEAL_REPORT_IDENTITY',voters,report.recipientSubject,'vote-'+report.id);
       reports.push(Object.assign({},report,{roundId:round.id,version:1,createdAt:new Date(now()-report.ageHours*3600000).toISOString()}));
     });
-    audit.push({id:'event-initial',actor:'Hệ thống mô phỏng',action:'COUNCIL_INITIALIZED',targetId:'council-v1',outcome:'ALLOWED',enforcement:'SIMULATED',createdAt:new Date(now()-172800000).toISOString()});
+    audit.push({id:'event-initial',actor:'Simulation system',action:'COUNCIL_INITIALIZED',targetId:'council-v1',outcome:'ALLOWED',enforcement:'SIMULATED',createdAt:new Date(now()-172800000).toISOString()});
     var runtime={contractVersion:'v1',mode:'MOCK'};
     runtime.init=api(session);runtime.getSession=api(session);
     runtime.login=api(function(subject){if(subject&&!person(subject))fail('INVALID_REQUEST');actorId=subject||'an';return session();});

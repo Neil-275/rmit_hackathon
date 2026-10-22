@@ -1,25 +1,25 @@
-## Chạy giao diện hiện tại
+## Run the current UI
 
-Mở trực tiếp [public/ui/index.html](public/ui/index.html) bằng Chrome/Edge; không cần Next.js hay Docker.
-Đây là bản **MOCK dùng dữ liệu giả**, chưa kết nối TideCloak/backend LIVE. Xem
-[hướng dẫn sử dụng](public/ui/README.md) và [bàn giao cho Tùng](docs/integration/static-ui-handoff.md).
-Các phần dưới mô tả mục tiêu sản phẩm và kiến trúc cần được xác minh khi tích hợp LIVE.
+Open [public/ui/index.html](public/ui/index.html) directly in Chrome/Edge; Next.js and Docker are unnecessary.
+This is a **MOCK using synthetic data**, with no TideCloak/LIVE backend connection. See the
+[usage guide](public/ui/README.md) and [handoff for Tung](docs/integration/static-ui-handoff.md).
+The sections below describe product goals and architecture that require verification during LIVE integration.
 
 ## Project overview
 
-**VoiceVault** is a cryptographically enforced employee voice platform protecting bottom-up ideas and whistleblowing reports without requiring employees to trust their organization's hierarchy or administrators.
+**VoiceVault** is a proposed cryptographically enforced employee voice platform protecting bottom-up ideas and whistleblowing reports without requiring employees to trust their organization's hierarchy or administrators.
 
 ### Vision & originality
-Idea boxes and whistleblowing hotlines both fail because whoever controls the channel controls the speaker's identity. VoiceVault unifies them: **Sealed-Credited Ideas** keep authors anonymous during review—staying permanently encrypted if rejected to prevent ridicule, while automatically unlocking credit upon approval. **Protected Reports** pair conflict-free random jury selection with threshold identity decryption.
+Idea boxes and whistleblowing hotlines both fail because whoever controls the channel controls the speaker's identity. VoiceVault unifies them: **Sealed-Credited Ideas** keep authors anonymous during review—staying permanently encrypted if rejected to prevent ridicule, while unlocking credit upon approval with consent. **Protected Reports** pair conflict-free random jury selection with threshold identity decryption.
 
 ### Trust constraint insight
-Employees withhold bold ideas fearing ridicule if judged infeasible, or credit theft by middle managers if successful. Whistleblowers stay silent because admins or executives can unmask them—especially when the accused sits on the review board. Eliminating unilateral control makes speaking up mathematically safe.
+Employees withhold bold ideas fearing ridicule if judged infeasible, or credit theft by middle managers if successful. Whistleblowers stay silent because admins or executives can unmask them—especially when the accused sits on the review board. Removing unilateral control is the intended protection.
 
 ### Value & impact
-Employees innovate and report misconduct safely; companies capture unvarnished ideas and early risk warnings. When engineer An submits an idea, manager Binh cannot steal credit, and An faces zero embarrassment if Director Chi rejects it. When An reports misconduct involving an ethics committee member, that member is automatically excluded before a random jury is assigned.
+Employees could innovate and report misconduct safely; companies could capture unvarnished ideas and early risk warnings. When engineer An submits an idea, manager Binh should be unable to alter credit. When An reports misconduct involving an ethics committee member, that member should be excluded before a random jury is assigned.
 
 ### Why TideCloak matters
-Standard backends let DBAs alter authors, read identities, or self-assign roles. VoiceVault uses TideCloak's Emergent Authority to encrypt identities client-side. Decryption only happens when policy conditions are met—either formal idea approval or a 2/3 quorum from a randomly selected, conflict-free ethics jury. No admin or CEO can unilaterally override this.
+The planned integration uses TideCloak's Emergent Authority for encrypted identities and policy-controlled decryption, requiring formal idea approval or a quorum of ceil(2N/3), including an independent approval, from a conflict-free jury. No admin or CEO should override this unilaterally. LIVE enforcement remains unimplemented and unverified.
 
 ### Prototype & storytelling
-Our prototype demonstrates both flows across Engineer, Manager, Director, IT Admin, and Ethics Pool roles. Judges will see TideCloak block three violations: a manager altering authorship, an IT Admin self-assigning jury roles, and a CEO or conflicted board member attempting to unmask a whistleblower without a valid 2/3 quorum.
+The offline MOCK simulates Engineer, Manager, Director, IT Admin, and Ethics Pool workflows. It demonstrates submission, credit consent, conflict exclusions, voting and council changes. Intended LIVE demonstrations include blocked authorship alteration, administrator self-assignment and identity access without a valid quorum; the current UI does not demonstrate TideCloak enforcement.

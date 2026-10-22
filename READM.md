@@ -1,1 +1,1 @@
-### jThư mục chứa code thi RMIT Hackathon siu xịn xò
+### Repository for our RMIT Hackathon code

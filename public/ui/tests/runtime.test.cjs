@@ -28,8 +28,8 @@ async function error(promise, code) {
   assert.equal(result.error.code, code);
   assert.equal(result.error.enforcement, 'SIMULATED');
 }
-const ideaInput = { title: 'Một sáng kiến mới có ích', description: 'Cải tiến quy trình kiểm tra để tiết kiệm thời gian cho cả nhóm.', category: 'PROCESS', publishCreditOnApproval: true };
-const reportInput = { title: 'Cần xem xét quy trình mua hàng', evidenceDetails: 'Dữ liệu hoàn toàn giả để kiểm tra luồng phản ánh và hội đồng.', accusedPersonIds: ['binh'], contact: 'an@example.test', consent: true };
+const ideaInput = { title: 'A useful new idea', description: 'Improve the review process to save time for the whole team.', category: 'PROCESS', publishCreditOnApproval: true };
+const reportInput = { title: 'Review the purchasing process', evidenceDetails: 'Entirely synthetic data for testing reports and council workflows.', accusedPersonIds: ['binh'], contact: 'an@example.test', consent: true };
 
 test('runtime implements every agreed v1 action and identifies itself as MOCK', async () => {
   const runtime = load();
@@ -74,7 +74,7 @@ test('idea decisions respect roles, expected version and terminal rejection', as
   const endorsed = await ok(runtime.endorseIdea(idea.id, idea.version));
   await ok(runtime.login('chi'));
   await error(runtime.decideIdea(idea.id, { decision: 'APPROVE', expectedVersion: idea.version }), 'VERSION_CONFLICT');
-  const rejected = await ok(runtime.decideIdea(idea.id, { decision: 'REJECT', expectedVersion: endorsed.version, reason: 'Cần thêm dữ liệu để đánh giá.' }));
+  const rejected = await ok(runtime.decideIdea(idea.id, { decision: 'REJECT', expectedVersion: endorsed.version, reason: 'More evidence is needed for assessment.' }));
   await error(runtime.revealIdentity('IDEA', idea.id), 'POLICY_DENIED');
   await error(runtime.decideIdea(idea.id, { decision: 'APPROVE', expectedVersion: rejected.version }), 'VERSION_CONFLICT');
 });
@@ -98,7 +98,7 @@ test('N=4 and N=5 do not reach the threshold after two approvals', async () => {
     assert.equal(round.quorumRequired, expectedT);
     for (const actor of ['frank','grace']) {
       await ok(runtime.login(actor));
-      round = await ok(runtime.castVote(roundId, { decision: 'APPROVE', reason: 'Đã xem xét bối cảnh vụ việc.' }));
+      round = await ok(runtime.castVote(roundId, { decision: 'APPROVE', reason: 'The circumstances of this case have been reviewed.' }));
     }
     assert.equal(round.status, 'COLLECTING');
     await ok(runtime.login('frank'));
@@ -133,7 +133,7 @@ test('reaching the numeric count without an independent vote remains locked', as
   await error(runtime.revealIdentity('REPORT', 'report-101', round.id), 'FORBIDDEN');
   await ok(runtime.login('frank'));
   const identity = await ok(runtime.revealIdentity('REPORT', 'report-101', round.id));
-  assert.equal(identity.displayName, 'An Nguyễn');
+  assert.equal(identity.displayName, 'An Nguyen');
   assert.equal(identity.simulated, true);
   assert.equal(JSON.stringify(await ok(runtime.listAudit({}))).includes('an@example.test'), false);
 });
@@ -141,7 +141,7 @@ test('reaching the numeric count without an independent vote remains locked', as
 test('deny terminates a vote, and expired or mismatched requests cannot reveal', async () => {
   const runtime = load();
   await ok(runtime.login('frank'));
-  const denied = await ok(runtime.castVote('vote-report-101', { decision:'DENY',reason:'Chưa đủ căn cứ.' }));
+  const denied = await ok(runtime.castVote('vote-report-101', { decision:'DENY',reason:'There is insufficient evidence.' }));
   assert.equal(denied.status, 'DENIED');
   await error(runtime.castVote(denied.id, { decision:'APPROVE',reason:'Again' }), 'VERSION_CONFLICT');
   await error(runtime.revealIdentity('REPORT', 'report-102', denied.id), 'INTEGRITY_MISMATCH');
@@ -168,12 +168,12 @@ test('assigned juror initiates an unmask request without redrawing its report as
   const report = await ok(runtime.submitReport(reportInput));
   assert.equal(report.voting, null);
   assert.equal(report.capabilities.canRequestUnmask, false);
-  await error(runtime.createUnmaskRequest(report.id, {purpose:'Kiểm tra hồ sơ đầy đủ.'}), 'FORBIDDEN');
+  await error(runtime.createUnmaskRequest(report.id, {purpose:'Review the complete report.'}), 'FORBIDDEN');
   const juror = report.voters[0].id;
   await ok(runtime.login(juror));
   const assigned = (await ok(runtime.listReports({}))).items.find(item => item.id === report.id);
   assert.equal(assigned.capabilities.canRequestUnmask, true);
-  const input = { recipientSubject: juror, purpose: 'Cần đối chiếu chứng cứ trong phản ánh.' };
+  const input = { recipientSubject: juror, purpose: 'The evidence in this report needs to be cross-checked.' };
   const request = await ok(runtime.createUnmaskRequest(report.id, input));
   assert.deepEqual(request.voting.voters, report.voters);
   assert.equal(request.voting.voterCount, report.voterCount);
@@ -186,7 +186,7 @@ test('council roster is unchanged at READY and only applies through the approved
   const runtime = load();
   await ok(runtime.login('frank'));
   const council = await ok(runtime.getCouncil());
-  const input = { expectedCouncilVersion:council.version, reason:'Bổ sung đại diện độc lập cho hội đồng.', proposedMembers:[...council.members,{subject:'mai',displayName:'Mai Trần',independent:true,active:true,membershipRole:'MEMBER'}], proposedSelectionPolicy:council.selectionPolicy };
+  const input = { expectedCouncilVersion:council.version, reason:'Add an independent representative to the council.', proposedMembers:[...council.members,{subject:'mai',displayName:'Mai Tran',independent:true,active:true,membershipRole:'MEMBER'}], proposedSelectionPolicy:council.selectionPolicy };
   const proposal = await ok(runtime.submitCouncilChange(input));
   const same = await ok(runtime.submitCouncilChange(input));
   assert.equal(same.id, proposal.id);
@@ -198,7 +198,7 @@ test('council roster is unchanged at READY and only applies through the approved
   const ordered = [...round.voters].sort((a,b)=>Number(b.independent)-Number(a.independent));
   for (const voter of ordered.slice(0, round.quorumRequired)) {
     await ok(runtime.login(voter.id));
-    await ok(runtime.castVote(round.id,{decision:'APPROVE',reason:'Xác nhận thành viên phù hợp.'}));
+    await ok(runtime.castVote(round.id,{decision:'APPROVE',reason:'The proposed member is suitable.'}));
   }
   assert.equal((await ok(runtime.getCouncil())).version, council.version);
   await ok(runtime.login('frank'));
@@ -231,7 +231,7 @@ test('anonymous submission audit never links the submitting persona to a resourc
   for (const resource of [idea, report]) {
     const event = audit.items.find(item => item.targetId === resource.id);
     assert.ok(event);
-    assert.equal(event.actor, 'Người gửi ẩn danh');
+    assert.equal(event.actor, 'Anonymous submitter');
   }
 });
 
@@ -241,7 +241,7 @@ test('expired READY council votes cannot change the roster or offer apply capabi
   await ok(runtime.login('frank'));
   const council = await ok(runtime.getCouncil());
   const proposal = await ok(runtime.submitCouncilChange({
-    expectedCouncilVersion: council.version, reason: 'Bổ sung thành viên để kiểm tra thời hạn.',
+    expectedCouncilVersion: council.version, reason: 'Add a member to test the approval expiry.',
     proposedMembers: [...council.members, { subject: 'mai', independent: false, active: true, membershipRole: 'MEMBER' }],
     proposedSelectionPolicy: council.selectionPolicy
   }));
@@ -249,7 +249,7 @@ test('expired READY council votes cannot change the roster or offer apply capabi
   const voters = [...round.voters].sort((a,b) => Number(b.independent) - Number(a.independent));
   for (const voter of voters.slice(0, round.quorumRequired)) {
     await ok(runtime.login(voter.id));
-    await ok(runtime.castVote(round.id, { decision: 'APPROVE', reason: 'Thành viên phù hợp.' }));
+    await ok(runtime.castVote(round.id, { decision: 'APPROVE', reason: 'The member is suitable.' }));
   }
   await ok(runtime.login('frank'));
   clock.value = Date.parse(round.expiresAt) + 1;

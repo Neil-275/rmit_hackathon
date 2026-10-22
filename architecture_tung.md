@@ -1,163 +1,163 @@
-# Architecture — Phần của Tùng: platform, browser runtime và tích hợp
+# Architecture — Tung's role: platform, browser runtime, and integration
 
-> Tùng chạy được Next.js và Docker; máy người còn lại không chạy được hai công cụ này.
-> Tùng sở hữu toàn bộ toolchain/runtime thật. Người còn lại viết HTML/CSS/JS thuần trong public/ui, xem bằng file://.
-> Giữ nguyên các yêu cầu council roster, random N/voters và vote thay đổi hội đồng trong tài liệu chung.
-> Đây là hướng dẫn triển khai; lần cập nhật này chỉ viết tài liệu, không dựng app.
+> Tung can run Next.js and Docker; the other teammate cannot run either tool.
+> Tung owns the entire real toolchain/runtime. The other teammate writes plain HTML/CSS/JS in public/ui and previews it on file://.
+> Preserve the council roster, random N/voter selection, and council-change voting requirements in the shared document.
+> This is an implementation guide. The current application uses MOCK only; LIVE and G1–G5 have not been run.
 
-Đọc [Architecture của bạn cùng nhóm](./architecture_toi.md) và [thiết kế chung](./voicevault_technical_architecture.md). File này là runbook dành cho Tùng; không yêu cầu máy bên kia chạy npm/DB.
+Read [your teammate's architecture](./architecture_toi.md) and the [shared design](./voicevault_technical_architecture.md). This is Tung's runbook; it does not require npm/DB on the other machine.
 
-## 1. Thiết kế tích hợp đã chọn
+## 1. Selected integration design
 
 ~~~text
-Máy bạn cùng nhóm:
-  public/ui/index.html + CSS/JS classic
-    -> MOCK runtime + fixture JS -> browser, không server/dependency
+Teammate's machine:
+  public/ui/index.html + classic CSS/JS
+    -> MOCK runtime + JS fixtures -> browser, no server/dependencies
 
-Máy Tùng:
-  Next.js phục vụ /ui/index.html
-    -> cùng UI
-    -> LIVE browser runtime do Tùng build
+Tung's machine:
+  Next.js serves /ui/index.html
+    -> the same UI
+    -> LIVE browser runtime built by Tung
     -> browser TideCloak SDK / crypto
     -> API /api/v1 -> services -> SQLite / policy / QEA
 ~~~
 
-Không chuyển UI sang React khi merge. Next.js phục vụ file trong public ở URL tương ứng từ root; đây là cách đưa nguyên HTML/CSS/JS vào ứng dụng. Root page có thể redirect tới /ui/index.html, không tạo page khác trùng đường dẫn static. [Next.js public folder](https://nextjs.org/docs/app/api-reference/file-conventions/public-folder).
+Do not convert the UI to React during merge. Next.js serves public files at their corresponding root-relative URLs, allowing the original HTML/CSS/JS to be used directly. The root page may redirect to /ui/index.html; do not create another page at the same static path. [Next.js public folder](https://nextjs.org/docs/app/api-reference/file-conventions/public-folder).
 
-Public folder chỉ có code/config công khai và fixture giả, không DB/secret/identity thật. UI tĩnh không phải lớp auth; API và policy vẫn bảo vệ dữ liệu.
+The public folder contains only public code/config and fake fixtures, never databases/secrets/real identities. Static UI is not an auth layer; API and policy still protect the data.
 
-## 2. File Tùng sở hữu
+## 2. Files owned by Tung
 
 ~~~text
 architecture_tung.md
 package.json / package-lock.json / tsconfig / next.config / CI
 .env.example / config/ / prisma/ / tests/ (automated)
 public/integration/
-  bootstrap.js                    classic JS, local mock và LIVE selection
-  contract-fixtures.js             JS public, dữ liệu giả, track trong Git
-  runtime.generated.js             generated bundle, gitignore, chỉ LIVE
+  bootstrap.js                    classic JS, local mock and LIVE selection
+  contract-fixtures.js             public JS, fake data, tracked in Git
+  runtime.generated.js             generated bundle, gitignored, LIVE only
 public/auth/
-  callback / silent-SSO assets     theo SDK đã pin và smoke test
+  callback / silent-SSO assets     according to pinned, smoke-tested SDK
 src/
-  app/                            host/redirect + API, không UI phải viết lại
+  app/                            host/redirect + API, no UI rewrite
   contracts/                      DTO/schema/encoding + fixture source
-  integration/browser-runtime.ts  SDK bridge chạy browser, không server crypto
+  integration/browser-runtime.ts  browser SDK bridge, no server crypto
   server/                         auth/domain/DB/council/voting/policy/audit
 scripts/                          bridge build, fixture export, smoke tests
 docs/integration/                 baseline/gates/handoff/test results
 ~~~
 
-Người còn lại sở hữu public/ui, bao gồm index/styles/app/mock-runtime/views/assets. Muốn đổi HTML/script tag thì gửi yêu cầu và bàn giao file trước; không tự sửa UI để che runtime mismatch.
+The other teammate owns public/ui, including index/styles/app/mock-runtime/views/assets. Request and receive an ownership handoff before changing HTML/script tags; do not edit UI to hide runtime mismatches.
 
-Tùng nhận toàn bộ automated tests, bao gồm file:// UI smoke và browser LIVE. Bạn cùng nhóm chỉ cần manual test giao diện, không cần cài test runner.
+Tung owns all automated tests, including file:// UI smoke and LIVE browser tests. The teammate only needs manual UI testing, without installing a test runner.
 
-## 3. Baseline đầu tiên phải bàn giao sớm
+## 3. First baseline: hand over early
 
-Không chờ API/policy hoàn chỉnh mới cho UI làm việc. Commit foundation tối thiểu có:
+Do not wait for a complete API/policy before enabling UI work. The minimal foundation commit includes:
 
-1. Contract runtime v1 và view fixtures đã chốt.
-2. public/integration/contract-fixtures.js là JS thường gán window.VoiceVaultFixtures, không fetch JSON.
-3. public/integration/bootstrap.js không phụ thuộc Node trong browser.
-4. public/ui/index.html shell và app.js với mount hook, bàn giao ownership cho bạn cùng nhóm.
-5. Một mẫu mock runtime tối thiểu hoặc hướng dẫn factory để UI mở file:// được.
-6. Check trên browser: mở index.html bằng file://, không server, Console không lỗi.
+1. Agreed runtime v1 contract and view fixtures.
+2. public/integration/contract-fixtures.js as plain JS assigning window.VoiceVaultFixtures, without JSON fetches.
+3. public/integration/bootstrap.js with no browser dependency on Node.
+4. public/ui/index.html shell and app.js mount hook, then hand ownership to the teammate.
+5. A minimal mock runtime or factory instructions enabling file:// preview.
+6. Browser verification: index.html opens through file:// without a server or Console errors.
 
-Sau đó Tùng scaffold/pin Next.js/React/Tide SDK/Prisma/tooling trên máy mình; giữ root repository, không tạo repo lồng nhau. Commit package/config và manifest baseline, không bắt bên kia cài theo.
+Then Tung scaffolds/pins Next.js/React/Tide SDK/Prisma/tooling on his machine. Keep the existing repository root; do not create a nested repository. Commit packages/config and the baseline manifest without requiring the teammate to install them.
 
-## 4. Bootstrap và hai chế độ chạy
+## 4. Bootstrap and two runtime modes
 
-Load order được ghi ở architecture_toi.md: fixture JS -> mock-runtime.js -> app.js -> bootstrap.js, tất cả classic defer.
+The load order in architecture_toi.md is fixture JS -> mock-runtime.js -> app.js -> bootstrap.js, all deferred classic scripts.
 
-Bootstrap chịu trách nhiệm:
+Bootstrap responsibilities:
 
-- file://: chỉ khởi tạo factory mock, đặt mode=MOCK, bật banner và gọi VoiceVaultUI.mount(mockRuntime). Không tải SDK/generated bundle, không gọi API hay Tide login.
-- HTTP(S): chỉ khởi tạo LIVE runtime, gọi init rồi mount; bundle/config/service lỗi phải hiện lỗi kết nối, không chuyển mock.
-- Contract version khác: dừng với CONTRACT_MISMATCH, không chạy UI bằng shape đoán.
-- UI mount một lần, có loading/error lifecycle; SDK init/login redirect không được tạo vòng lặp.
-- Không để query string người dùng bật mock trong LIVE hoặc tự gắn FABRIC-denied. Backend không tin mode/capability client.
+- file://: instantiate only the mock factory, set mode=MOCK, enable the banner, and call VoiceVaultUI.mount(mockRuntime). Do not load the SDK/generated bundle, call APIs, or start Tide login.
+- HTTP(S): instantiate only the LIVE runtime, call init, then mount. Bundle/config/service failures must display a connection error without switching to mock.
+- Contract version mismatch: stop with CONTRACT_MISMATCH; do not run UI against guessed shapes.
+- Mount UI once with a loading/error lifecycle; SDK init/login redirects must not loop.
+- User query strings must not enable mock in LIVE or label a result FABRIC-denied. The backend does not trust client mode/capabilities.
 
-Mock có thể vẫn là asset công khai; việc ai đó tự mở mock không tạo quyền server. Live security test phải xác minh đang thực hiện request thật và mode=LIVE, không chỉ nhìn badge.
+Mock may remain a public asset; opening it grants no server permissions. LIVE security tests must verify real requests and mode=LIVE, beyond checking the badge.
 
-## 5. LIVE runtime: phần khó Tùng nhận thay người còn lại
+## 5. LIVE runtime: Tung owns the difficult integration
 
-Interface chính xác ở mục 5.4 tài liệu chung. Tùng implement cùng surface như mock:
+The exact interface is in shared-document section 5.4. Tung implements the same surface as mock:
 
-- Session/login/logout với SDK đã pin; không lộ raw token cho UI.
-- Danh sách/view qua API adapter và ApiResult; validate response runtime.
-- submitIdea/submitReport: nhận form input trong browser, sinh UUID, canonical hash, lấy identity từ phiên thật, tạo proof/encrypt, gửi DTO ciphertext tới server.
-- castVote: lấy context bất biến, tạo proof thật và submit đúng votingRequestId, không chấp nhận phiếu tự khai.
-- revealIdentity: kiểm policy/challenge/binding/proof; plaintext chỉ trả vào view tạm trong browser, không POST plaintext về server.
-- council proposal/apply: shared VotingService, version/hash/N/T, ngăn apply trước đủ proof.
-- Audit hiển thị đúng APP/FABRIC/QEA/CLIENT/SIMULATED.
+- Session/login/logout with the pinned SDK; never expose raw tokens to the UI.
+- Lists/views through an API adapter and ApiResult; validate responses at runtime.
+- submitIdea/submitReport: receive form input in the browser, generate UUID/canonical hash, derive identity from the real session, create proof/encryption, and send ciphertext DTOs to the server.
+- castVote: obtain immutable context, create a real proof, and submit against the correct votingRequestId; reject self-asserted votes.
+- revealIdentity: verify policy/challenge/binding/proof; return plaintext only to a temporary browser view, never POST it to the server.
+- Council proposal/apply: shared VotingService, version/hash/N/T, and no apply before sufficient proof.
+- Audit correctly distinguishes APP/FABRIC/QEA/CLIENT/SIMULATED.
 
-Runtime là code browser do Tùng build; không chuyển encryption/decryption sang Next.js server chỉ để dễ nối UI.
+The runtime is browser code built by Tung. Do not move encryption/decryption into the Next.js server to simplify UI integration.
 
-Cần adapter Tide SDK Vanilla JS thay vì yêu cầu UI dùng React provider/hook. G1 vẫn phải chứng minh cross-user sharing; tag wrapper không tự bổ sung resource policy.
+Provide a Vanilla JS Tide SDK adapter instead of requiring React providers/hooks in the UI. G1 must still prove cross-user sharing; a tag wrapper does not add resource policy.
 
-### 5.1. Build browser bridge
+### 5.1. Build the browser bridge
 
-Tùng có thể bundle src/integration/browser-runtime.ts bằng esbuild thành IIFE/classic script, đưa vào public/integration/runtime.generated.js. Chọn/pin bản bundler tương thích trong baseline. [esbuild bundling và format](https://esbuild.github.io/api/#bundle).
+Tung may bundle src/integration/browser-runtime.ts with esbuild as an IIFE/classic script at public/integration/runtime.generated.js. Select/pin a compatible bundler in the baseline. [esbuild bundling and format](https://esbuild.github.io/api/#bundle).
 
-Script cần tạo:
+Required scripts:
 
-| Script | Công việc |
+| Script | Work |
 | --- | --- |
-| build:fixtures | Export fixture JS từ nguồn contract, chỉ dữ liệu giả; kiểm diff trước commit |
-| build:bridge | Bundle browser runtime, xử lý asset/worker nếu SDK yêu cầu |
-| dev | Build bridge trước, sau đó Next dev; rebuild bridge khi source runtime đổi |
-| build | Build bridge trước Next build, bảo đảm bundle nằm trong public trước build |
-| test:ui:file | Browser mở file:// index.html, SDK/API không được gọi |
-| test:ui:live | Browser mở /ui/index.html qua Next, runtime LIVE/API/auth thật |
-| check | Bổ sung kiểm contract/runtime/fixture và bridge build vào checks chung |
+| build:fixtures | Export JS fixtures from contract source, fake data only; review diff before commit |
+| build:bridge | Bundle browser runtime; handle assets/workers if required by SDK |
+| dev | Build bridge before Next dev; rebuild when runtime source changes |
+| build | Build bridge before Next build, ensuring the bundle is in public first |
+| test:ui:file | Browser opens file:// index.html; SDK/API must not be called |
+| test:ui:live | Browser opens /ui/index.html through Next with real LIVE runtime/API/auth |
+| check | Include contract/runtime/fixture checks and bridge build in shared checks |
 
-Generated runtime không cần có trên máy bạn cùng nhóm và không commit như source. bootstrap/fixture JS phải track để local preview không hỏng sau checkout mới.
+The generated runtime is not needed on the teammate's machine and is not committed as source. Track bootstrap/fixture JS so a fresh checkout supports local preview.
 
-Kiểm cả tải assets SDK, callback, CSP, CORS/issuer và runtime config; đừng nhận bundle một file là đủ trước khi smoke test SDK thật. Credential/admin secret không được embed vào bundle/config.
+Verify SDK asset loading, callback, CSP, CORS/issuer, and runtime config. Do not assume a single bundled file is sufficient before smoke-testing the real SDK. Never embed credentials/admin secrets in the bundle/config.
 
-## 6. Backend, council và policy giữ nguyên trách nhiệm
+## 6. Backend, council, and policy responsibilities
 
-Tùng thực hiện toàn bộ mục 6–11 và 14–16 của tài liệu chung:
+Tung implements shared-document sections 6–11 and 14–16:
 
-- Verify JWT/org/role thật; không chỉ kiểm Bearer prefix.
-- Validation/idempotency/persistence/optimistic version/outbox.
-- Roster chốt lúc bootstrap; min/max mặc định 3/5.
-- Bốc N rồi N voters sau CoI; T=ceil(2N/3), có independent và assignment bất biến.
-- Shared VotingService cho mở danh tính và council change.
-- Chưa APPLIED thì roster cũ còn hiệu lực, candidate không vote bổ nhiệm mình, stale proposal không tự rebase.
-- QEA là lớp kỹ thuật bổ sung, không thay vote nghiệp vụ.
-- Gate G1–G5 chưa đạt giữ chức năng khóa, không fake proof hoặc cấp role rộng để demo.
-- Không lưu reporter plaintext hoặc log token/payload nhận diện.
+- Verify real JWT/org/role; checking a Bearer prefix is insufficient.
+- Validation/idempotency/persistence/optimistic versions/outbox.
+- Roster fixed at bootstrap; default min/max 3/5.
+- Draw N, then N voters after CoI filtering; T=ceil(2N/3), independent member required, immutable assignment.
+- Shared VotingService for identity reveal and council changes.
+- Until APPLIED, the old roster remains effective; candidates cannot vote on their appointment; stale proposals do not rebase automatically.
+- QEA is an additional technical layer, not a replacement for business voting.
+- Keep functions locked when G1–G5 have not passed; never fake proofs or grant broad roles for a demo.
+- Never persist reporter plaintext or log tokens/identifying payloads.
 
-Mọi npm/Docker/Prisma/CI/live security command trong hướng dẫn chung đều do Tùng chạy. Người còn lại có thể xem kết quả qua screen share hoặc URL test đã được cung cấp, không phải dựng hệ thống lần hai.
+Tung runs all npm/Docker/Prisma/CI/live-security commands in the shared guide. The teammate may review results through screen share or a supplied test URL without rebuilding the system.
 
-## 7. Chạy riêng và chạy chung
+## 7. Separate and integrated runs
 
-### Chạy riêng
+### Separate runs
 
-- Người còn lại mở file:// và làm UI mock.
-- Tùng chạy Next/Docker/API và LIVE runtime trên máy mình.
-- Contract/fixture thay đổi thì commit baseline nhỏ trước để UI cập nhật; không bắt người kia đọc TS để đoán JSON.
+- The teammate opens file:// and works on mock UI.
+- Tung runs Next/Docker/API and LIVE runtime on his machine.
+- Commit small contract/fixture baseline updates before requiring UI changes; do not make the teammate infer JSON from TypeScript.
 
-### Chạy chung sau merge
+### Integrated run after merge
 
-1. Nhận commit UI, giữ nguyên public/ui.
-2. Merge vào integration/voicevault theo mục 8.
-3. Build fixtures/bridge, validate/migrate/generate/seed DB local của Tùng.
-4. Chạy Next rồi mở /ui/index.html, không mở file:// để chứng minh LIVE.
-5. Kiểm relative CSS/JS/assets, bootstrap chọn LIVE, SDK callback trở về đúng route.
-6. Test UI action gọi runtime rồi API thật; xem network để tránh demo chỉ dùng mock.
-7. Test G1–G5, N=3/4/5, đủ/thiếu T, council pending/applied/stale và auth khác persona.
-8. Gửi SHA, ảnh hoặc video và kết quả cho người kia review UX.
+1. Receive the UI commit and preserve public/ui.
+2. Merge into integration/voicevault as described in section 8.
+3. Build fixtures/bridge and validate/migrate/generate/seed Tung's local DB.
+4. Start Next and open /ui/index.html; file:// cannot demonstrate LIVE.
+5. Check relative CSS/JS/assets, LIVE bootstrap selection, and SDK callback route.
+6. Test UI actions through runtime to real APIs; inspect network requests so mock-only behavior cannot masquerade as LIVE.
+7. Test G1–G5, N=3/4/5, sufficient/insufficient T, council pending/applied/stale, and persona-specific auth.
+8. Send SHA, screenshots/video, and results for the teammate's UX review.
 
-localhost trên máy Tùng không tự truy cập được từ máy người kia. Nếu đã có URL test HTTPS hợp lệ thì cung cấp URL; nếu chưa, screen share/record kết quả. Không bắt họ cài Next/Docker để review.
+Tung's localhost is not automatically accessible from the teammate's machine. Supply an existing valid HTTPS test URL, or share/record the screen. Do not require Next/Docker installation for review.
 
-## 8. Git và merge
+## 8. Git and merge
 
-Branch Tùng: work/server-policy. Branch người kia: work/ui-static. Cùng từ integration/voicevault baseline.
+Tung's branch: work/server-policy. Teammate's branch: work/ui-static. Both start from the integration/voicevault baseline.
 
-Tùng là single writer của dependency/lockfile/contracts/migration/integration. Bạn cùng nhóm commit UI hoặc gửi ZIP public/ui có baseline SHA; ZIP không chứa .git/env/database. Tùng nhập ZIP vào branch import riêng rồi review diff, không chép đè cả repo.
+Tung is the single writer for dependencies/lockfiles/contracts/migrations/integration. The teammate commits UI or sends a public/ui ZIP with baseline SHA, excluding .git/env/database. Tung imports a ZIP into a separate branch and reviews the diff instead of overwriting the repository.
 
-Mỗi mốc merge API/runtime hoặc UI nhỏ, không chờ xong hết:
+Merge small API/runtime or UI milestones as they become ready:
 
 ~~~powershell
 git fetch origin
@@ -167,7 +167,7 @@ git status --short
 git merge --no-ff --no-commit origin/work/ui-static
 ~~~
 
-Sau giải quyết conflict, trên cây kết quả:
+After resolving conflicts, run against the resulting tree:
 
 ~~~powershell
 git diff --check
@@ -183,55 +183,55 @@ npm run test:ui:file
 npm run test:integration
 ~~~
 
-Đối chiếu fixture export có thay contract ngoài dự kiến không. Nếu contract đổi, chốt với người kia trước, không tự sửa UI cho khớp một API mới chưa review.
+Check that fixture export did not unexpectedly change the contract. Agree contract changes with the teammate first; do not silently adapt UI to an unreviewed API.
 
-Khởi động app/test prerequisites rồi chạy test:ui:live, live security và E2E cần thiết. Đạt mới commit merge/push integration. Already up to date thì kiểm handoff SHA, không tạo commit rỗng.
+Start application/test prerequisites, then run test:ui:live, live security, and required E2E tests. Commit/push integration only after passing. For Already up to date, verify the handoff SHA instead of creating an empty commit.
 
-Mọi reset/drift/migration conflict theo runbook chung; không reset DB để ép xanh. Git abort/revert không hoàn tác DB/realm/grant.
+Follow the shared runbook for reset/drift/migration conflicts; never reset the DB just to pass checks. Git abort/revert does not undo DB/realm/grants.
 
-Sau merge, người kia chỉ fetch/merge Git rồi mở index.html lại, không chạy npm/Prisma. Tùng chịu trách nhiệm fresh checkout build toàn bộ app.
+After merge, the teammate only fetches/merges Git and reopens index.html, without npm/Prisma. Tung owns a fresh-checkout build of the full application.
 
-## 9. Milestone thực tế
+## 9. Practical milestones
 
-| Mốc | Tùng bàn giao/kiểm tra |
+| Milestone | Tung's handoff/verification |
 | --- | --- |
-| T0 | Bootstrap + fixture + runtime contract, file:// shell mở được |
-| T1 | Next static hosting + /me/API skeleton + bridge init; UI không phải đổi sang React |
-| T2 | LIVE submit/decision/reveal ý tưởng + G1/G2/G4 |
+| T0 | Bootstrap + fixtures + runtime contract, working file:// shell |
+| T1 | Next static hosting + /me/API skeleton + bridge init; UI stays plain HTML/CSS/JS |
+| T2 | LIVE idea submit/decision/reveal + G1/G2/G4 |
 | T3 | LIVE report/vote/council change + G3/G5 |
-| T4 | Merge UI, file/local/live checks, privacy, concurrency, fresh DB |
-| T5 | Đối chiếu README/demo, SHA chung và handoff |
+| T4 | UI merge, file/local/live checks, privacy, concurrency, fresh DB |
+| T5 | README/demo alignment, shared SHA, and handoff |
 
-Tùng nhận nhiều phần kỹ thuật hơn vì máy có toolchain; người kia nhận đủ màn hình, UX state, fixture-driven UI và demo để Tùng tập trung runtime/policy.
+Tung handles more technical work because his machine supports the toolchain. The teammate owns all screens, UX states, fixture-driven UI, and demo content so Tung can focus on runtime/policy.
 
-## 10. Prompt cho coding agent trên máy Tùng
+## 10. Prompt for the coding agent on Tung's machine
 
 ~~~text
-Đọc architecture_tung.md, architecture_toi.md và thiết kế chung.
-Chỉ máy này chạy được Next.js/Docker; bạn cùng nhóm chỉ mở HTML trong browser.
-Sở hữu platform/API/DB/IAM/policy, browser LIVE runtime, build/CI/tests.
-Giữ UI public/ui của người kia, không viết lại React/TSX hoặc yêu cầu họ npm.
+Read architecture_tung.md, architecture_toi.md, and the shared design.
+Only this machine runs Next.js/Docker; the teammate opens HTML in a browser.
+Own platform/API/DB/IAM/policy, browser LIVE runtime, build/CI/tests.
+Preserve the teammate's public/ui; do not rewrite it in React/TSX or require npm.
 
-Bàn giao sớm bootstrap.js + contract-fixtures.js chạy file://.
-Runtime MOCK/LIVE cùng interface v1; HTTP(S) chỉ LIVE, lỗi không fallback.
-Bundle SDK Vanilla JS cho browser, không đưa crypto sang server, không lộ token.
-Tạo script bridge build trước Next build và file:// + LIVE browser smoke tests.
+Hand over file:// bootstrap.js + contract-fixtures.js early.
+MOCK/LIVE use the same v1 interface; HTTP(S) is LIVE only, with no fallback.
+Bundle Vanilla JS SDK for the browser; keep crypto there and tokens private.
+Build bridge before Next build; add file:// and LIVE browser smoke tests.
 
-Giữ roster bootstrap, random N/voters, T=ceil(2N/3), vote council change,
-idempotency, proof/context/version, fail closed khi G1–G5 chưa kiểm chứng.
-Merge UI qua branch, test cây đã merge, báo SHA và kết quả thực.
-Không sửa file UI người kia nếu chưa bàn giao ownership.
+Preserve bootstrap roster, random N/voters, T=ceil(2N/3), council-change voting,
+idempotency, proof/context/version; fail closed until G1–G5 are verified.
+Merge UI through branches, test the merged tree, report SHA and actual results.
+Do not edit the teammate's UI without an ownership handoff.
 ~~~
 
-## 11. Handoff từ Tùng
+## 11. Handoff from Tung
 
 ~~~text
 Milestone / commit SHA / baseline SHA:
-Runtime contract version / methods đã LIVE:
-Fixture/bootstrap thay đổi:
-SDK/Next/Node/npm/Prisma/image/policy version:
-Lệnh đã chạy + kết quả (file UI / integration / LIVE / G1–G5):
-Prerequisite hoặc URL test/screen share:
-Lỗi/giới hạn chưa đạt, method đang POLICY_UNAVAILABLE:
-Việc UI cần chỉnh / file ownership cần bàn giao:
+Runtime contract version / methods already LIVE:
+Fixture/bootstrap changes:
+SDK/Next/Node/npm/Prisma/image/policy versions:
+Commands actually run + results (file UI / integration / LIVE / G1–G5):
+Prerequisites or test URL/screen share:
+Remaining failures/limits, methods returning POLICY_UNAVAILABLE:
+Required UI changes / file ownership handoffs:
 ~~~

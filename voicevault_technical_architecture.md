@@ -1,203 +1,203 @@
-# VoiceVault — Kiến trúc kỹ thuật cho hai người code song song
+# VoiceVault — Technical architecture for two people working in parallel
 
-> Phạm vi: Sealed-Credited Ideas + Protected Reports, RMIT Hackathon — UNLOCKED.
-> Trạng thái: bản thiết kế để triển khai. Repository hiện chưa có ứng dụng, script hay kiểm thử tích hợp; các đường dẫn và endpoint bên dưới là đầu ra cần tạo.
-> Cách dùng: bạn đọc [architecture_toi.md](./architecture_toi.md), Tùng đọc [architecture_tung.md](./architecture_tung.md); tài liệu này giữ contract và quy tắc nghiệp vụ/bảo mật chung.
-> Ràng buộc đã xác nhận: máy bạn không chạy Next.js/Docker; máy Tùng chạy được cả hai. Bạn làm static UI, Tùng làm platform và browser runtime. A = bạn, B = Tùng trong các luồng dưới.
-> Tài liệu này thay thiết kế kỹ thuật cũ. Trước nộp bài phải đối chiếu README/Idea.MD với kết quả thực tế, không giữ các cam kết mạnh hơn bằng chứng đã có.
+> Scope: Sealed-Credited Ideas + Protected Reports, RMIT Hackathon — UNLOCKED.
+> Status: implementation design. The current application uses MOCK only; LIVE and G1–G5 have not been run. Paths, endpoints, scripts, and integration tests below specify target deliverables, not verified implementation.
+> Usage: you read [architecture_toi.md](./architecture_toi.md), Tung reads [architecture_tung.md](./architecture_tung.md); this document maintains shared contracts and business/security rules.
+> Confirmed constraint: your machine cannot run Next.js/Docker; Tung's supports both. You own static UI; Tung owns platform and browser runtime. A = you, B = Tung in the flows below.
+> This document replaces the previous technical design. Before submission, align README/Idea.MD with actual results; retain no claims stronger than the available evidence.
 
-## Mục lục
+## Contents
 
-- [1. Quyết định MVP và tiêu chí bảo mật](#1-quyết-định-mvp-và-tiêu-chí-bảo-mật)
-- [2. Kiến trúc và ranh giới tin cậy](#2-kiến-trúc-và-ranh-giới-tin-cậy)
-- [3. Phân công và quyền sở hữu file](#3-phân-công-và-quyền-sở-hữu-file)
-- [4. Baseline trước khi tách branch](#4-baseline-trước-khi-tách-branch)
-- [5. Contract v1 dùng chung](#5-contract-v1-dùng-chung)
-- [6. API, auth và xử lý lỗi](#6-api-auth-và-xử-lý-lỗi)
-- [7. State machine và luồng nghiệp vụ](#7-state-machine-và-luồng-nghiệp-vụ)
-- [8. SDK và chính sách TideCloak](#8-sdk-và-chính-sách-tidecloak)
-- [9. Hash và bằng chứng tác giả](#9-hash-và-bằng-chứng-tác-giả)
-- [10. Xung đột lợi ích và chọn hội đồng](#10-xung-đột-lợi-ích-và-chọn-hội-đồng)
-- [11. Database, transaction và migration](#11-database-transaction-và-migration)
-- [12. Code song song và Git merge chi tiết](#12-code-song-song-và-git-merge-chi-tiết)
-- [13. Chạy hệ thống sau merge](#13-chạy-hệ-thống-sau-merge)
-- [14. Quyền riêng tư và audit](#14-quyền-riêng-tư-và-audit)
-- [15. Prompt và mẫu bàn giao](#15-prompt-và-mẫu-bàn-giao)
-- [16. Kiểm thử, demo và điều kiện hoàn thành](#16-kiểm-thử-demo-và-điều-kiện-hoàn-thành)
-- [17. Nguồn kỹ thuật](#17-nguồn-kỹ-thuật)
+- [1. MVP decisions and security criteria](#1-mvp-decisions-and-security-criteria)
+- [2. Architecture and trust boundaries](#2-architecture-and-trust-boundaries)
+- [3. Roles and file ownership](#3-roles-and-file-ownership)
+- [4. Baseline before branching](#4-baseline-before-branching)
+- [5. Shared v1 contract](#5-shared-v1-contract)
+- [6. API, auth, and error handling](#6-api-auth-and-error-handling)
+- [7. State machines and business flows](#7-state-machines-and-business-flows)
+- [8. SDK and TideCloak policy](#8-sdk-and-tidecloak-policy)
+- [9. Hashing and authorship evidence](#9-hashing-and-authorship-evidence)
+- [10. Conflicts of interest and council selection](#10-conflicts-of-interest-and-council-selection)
+- [11. Database, transactions, and migrations](#11-database-transactions-and-migrations)
+- [12. Parallel development and detailed Git merges](#12-parallel-development-and-detailed-git-merges)
+- [13. Running the system after merge](#13-running-the-system-after-merge)
+- [14. Privacy and audit](#14-privacy-and-audit)
+- [15. Prompts and handoff templates](#15-prompts-and-handoff-templates)
+- [16. Tests, demo, and completion criteria](#16-tests-demo-and-completion-criteria)
+- [17. Technical sources](#17-technical-sources)
 
-## 1. Quyết định MVP và tiêu chí bảo mật
+## 1. MVP decisions and security criteria
 
-| Chủ đề | Quyết định |
+| Topic | Decision |
 | --- | --- |
-| Phân công | Bạn: HTML/CSS/JS UI + mock + manual QA. Tùng: Next.js/Docker/API/DB/IAM/policy, browser crypto/runtime, build/test/merge |
-| Kiến trúc | Next.js phục vụ API và static UI trong public/ui; không buộc UI dùng React/TSX, không scaffold hai ứng dụng riêng |
-| Database | SQLite + Prisma; bỏ JSON store để thống nhất transaction/migration |
-| Phiên bản | Pin bản Next.js/React/SDK đã scaffold và smoke test thành công; không giữ “14+” mơ hồ |
-| ORM cho hướng dẫn này | Prisma CLI và @prisma/client cùng 6.19.0; nâng major là thay đổi baseline riêng |
-| Contract | DTO/schema v1 phía Tùng; UI dùng runtime interface v1 và fixture JS sinh từ nguồn chung, không import TypeScript |
-| Danh sách hội đồng | Chốt roster có version ngay khởi tạo; mọi thay đổi sau đó phải qua vote |
-| Người được vote | Bốc ngẫu nhiên cả số lượng N và N người từ roster hiện hành sau lọc CoI; mặc định N từ 3 tới min(5, eligibleCount) |
-| Ngưỡng thông qua | T = ceil(2 × N / 3) APPROVE khác người, có ít nhất một independent approver |
-| Đổi hội đồng | Đề xuất thêm/xóa/đổi vai → cùng pipeline vote như phản ánh → verify và áp dụng nguyên tử; chưa áp dụng thì roster cũ còn hiệu lực |
-| Thiếu người hợp lệ | AWAITING_ELIGIBLE_JURY; không hạ minVoters hoặc thay N/T sau khi đã bốc |
-| Nội dung báo cáo | Dữ liệu giả, lưu rõ trong prototype; API giới hạn người đọc |
-| Công khai tác giả | Sau APPROVED + consent đã ràng buộc với ý tưởng + bằng chứng hợp lệ |
-| Ý tưởng bị từ chối | Terminal, không tạo yêu cầu mở; không hứa xóa khóa/niêm phong vĩnh viễn |
-| Reporter plaintext | Chỉ trong bộ nhớ phiên recipient; không lưu lại database |
-| Policy chưa kiểm chứng | POLICY_UNAVAILABLE, không fallback sang bộ đếm DB/biến UI |
-| Persona demo | Các phiên đăng nhập thật, không chỉ thay activeRole trên giao diện |
+| Roles | You: HTML/CSS/JS UI + mock + manual QA. Tung: Next.js/Docker/API/DB/IAM/policy, browser crypto/runtime, build/test/merge |
+| Architecture | Next.js serves API and static UI in public/ui; no React/TSX requirement or two separate application scaffolds |
+| Database | SQLite + Prisma; replace JSON storage to unify transactions/migrations |
+| Versions | Pin scaffolded, successfully smoke-tested Next.js/React/SDK versions; avoid vague “14+” requirements |
+| ORM for this guide | Prisma CLI and @prisma/client both 6.19.0; a major upgrade is a separate baseline change |
+| Contract | Tung owns DTO/schema v1; UI uses runtime interface v1 and JS fixtures generated from shared source, without TypeScript imports |
+| Council roster | Fix a versioned roster at initialization; all later changes require voting |
+| Eligible voters | Randomly draw both N and N people from the current roster after CoI filtering; default N ranges from 3 to min(5, eligibleCount) |
+| Approval threshold | T = ceil(2 × N / 3) distinct APPROVE votes, including at least one independent approver |
+| Council changes | Propose additions/removals/role changes → same voting pipeline as reports → verify and apply atomically; old roster remains effective until applied |
+| Insufficient eligible members | AWAITING_ELIGIBLE_JURY; never lower minVoters or change N/T after selection |
+| Report content | Fake data, stored in readable form in the prototype; API restricts readers |
+| Public authorship credit | Only after APPROVED + idea-bound consent + valid evidence |
+| Rejected ideas | Terminal, no reveal request; no promises of key deletion or permanent sealing |
+| Reporter plaintext | Recipient session memory only; never persisted to the database |
+| Unverified policy | POLICY_UNAVAILABLE, with no fallback to DB counters/UI variables |
+| Demo personas | Real authenticated sessions, beyond changing activeRole in the interface |
 
-Phạm vi này thay phần MVP cũ chỉ chọn Credited trong Idea.MD. Cả hai người dùng một cách hiểu khi triển khai.
+This scope replaces the old Credited-only MVP in Idea.MD. Both implementers must share this interpretation.
 
-### 1.1. Gate kỹ thuật phải có bằng chứng
+### 1.1. Technical gates require evidence
 
-| Gate | Cần chứng minh | Owner | Chưa đạt |
+| Gate | Required evidence | Owner | If unmet |
 | --- | --- | --- | --- |
-| G1 | An mã hóa, recipient khác mở được qua cơ chế chia sẻ thực sự được hỗ trợ | Tùng thực hiện, bạn review UX | Khóa reveal, ghi cross-user chưa được hỗ trợ |
-| G2 | Có role vẫn không mở được hồ sơ chưa duyệt/đã từ chối bằng lời gọi trực tiếp | B | Không cấp decrypt role rộng để lách |
-| G3 | Approval/grant cho phản ánh và đổi hội đồng gắn đúng resource/payload, roster version, N/T, assignment, recipient, expiry và policy | B | Row phiếu chỉ hiển thị tiến độ, chưa cấp quyền mật mã |
-| G4 | Proof chứng minh tác giả xác thực, không chỉ tên tự khai trong JSON | Tùng thực hiện, bạn review hiển thị | Không hiển thị “Cryptographically Verified” |
-| G5 | QEA và policy không cho đổi roster/quyền trực tiếp, tái bootstrap hoặc áp thay đổi chưa có vote hợp lệ | B | Giới hạn cam kết, ghi rõ đường chưa kiểm chứng |
+| G1 | An encrypts; another recipient opens through a genuinely supported sharing mechanism | Tung implements; you review UX | Lock reveal and state that cross-user sharing is unsupported |
+| G2 | Direct calls cannot open unapproved/rejected records even with a role | B | Do not work around this with broad decrypt roles |
+| G3 | Report/council-change approvals and grants bind the correct resource/payload, roster version, N/T, assignment, recipient, expiry, and policy | B | Vote rows show progress only and grant no cryptographic authority |
+| G4 | Proof establishes authenticated authorship, beyond a self-declared JSON name | Tung implements; you review presentation | Do not display “Cryptographically Verified” |
+| G5 | QEA/policy prevent direct roster/permission edits, repeat bootstrap, and changes without valid votes | B | Limit claims and identify unverified paths |
 
-Mỗi gate ghi PASS/FAIL/NOT RUN, test case, version và request ID không nhạy cảm. Modal đỏ không thay bằng chứng thao tác thật.
+Record PASS/FAIL/NOT RUN, test case, version, and a nonsensitive request ID for every gate. A red modal does not replace evidence of a real operation.
 
-## 2. Kiến trúc và ranh giới tin cậy
+## 2. Architecture and trust boundaries
 
 ~~~mermaid
 flowchart LR
-    U[Người dùng] --> C[Browser: UI của bạn + runtime của Tùng]
-    C -->|JWT + DTO v1 + ciphertext| S[Tùng: API + domain services]
+    U[User] --> C[Browser: your UI + Tung's runtime]
+    C -->|JWT + DTO v1 + ciphertext| S[Tung: API + domain services]
     S --> D[(SQLite)]
     C <--> T[TideCloak SDK / IAM]
     T <--> F[Fabric + policy]
-    S --> P[Tùng: Policy adapter]
-    P -->|Yêu cầu và bằng chứng| F
-    F -->|Kết quả theo phiên hợp lệ| C
+    S --> P[Tung: Policy adapter]
+    P -->|Requests and evidence| F
+    F -->|Results for a valid session| C
 ~~~
 
-Sơ đồ là ranh giới trách nhiệm. Flow gọi SDK/policy cụ thể phải xác nhận ở G1–G3, không phải khẳng định một API Tide chưa được kiểm chứng.
+The diagram defines responsibility boundaries. Actual SDK/policy call flows must be confirmed at G1–G3; this does not assert an unverified Tide API.
 
-Ba lớp độc lập:
+Three independent layers:
 
-1. Authentication xác minh token, ứng dụng, tổ chức và phiên.
-2. Application authorization kiểm tra role, quyền đọc, jury, trạng thái và version.
-3. Cryptographic authorization kiểm tra bằng chứng theo từng tài nguyên ngay tại dịch vụ mật mã. Bỏ qua API/UI hoặc sửa row DB không được tạo request giải mã hợp lệ.
+1. Authentication verifies token, application, organization, and session.
+2. Application authorization checks roles, read permissions, jury, state, and version.
+3. Cryptographic authorization verifies resource-specific evidence at the cryptographic service itself. Bypassing API/UI or editing DB rows must not create a valid decryption request.
 
-Chỉ có lớp 1/2 thì chưa chống backend độc hại. Policy không tin một cờ approved hoặc assignment backend tự sửa mà không có nguồn bằng chứng thích hợp.
+Layers 1/2 alone do not protect against a malicious backend. Policy must not trust an approved flag or a backend-edited assignment without an appropriate source of evidence.
 
-Giới hạn phải công bố:
+Disclose these limitations:
 
-- Backend nhận JWT vẫn biết người gửi tại lúc request. Không lưu sub chỉ giảm liên kết trong DB, chưa ẩn danh trước backend.
-- Frontend bị sửa có thể ghi plaintext trước mã hóa; tính toàn vẹn mã client là giả định cần xét khi admin kiểm soát triển khai.
-- Người đã xem có thể chụp/tiết lộ. Thu hồi quyền không lấy lại nội dung đã biết.
-- Một nhóm đủ T = ceil(2 × N / 3) người đủ điều kiện thông đồng có thể thông qua; không loại bỏ mọi thông đồng.
-- Mã hóa không ngăn xóa hồ sơ, ngừng dịch vụ hoặc suy luận người viết từ nội dung.
-- Directory, roster/version, kết quả bốc N/người, proof và policy phải có nguồn tin cậy tương ứng threat model, không chỉ được lưu trong DB.
+- A backend receiving JWTs still knows the sender at request time. Omitting sub reduces database linkage but does not provide anonymity against the backend.
+- Modified frontend code can record plaintext before encryption; client-code integrity is an assumption to assess when admins control deployment.
+- Viewers can capture/disclose content. Revocation cannot recover information already seen.
+- A colluding group of T = ceil(2 × N / 3) eligible members can approve; the design does not eliminate all collusion.
+- Encryption does not prevent record deletion, service shutdown, or inferring authorship from content.
+- Directory, roster/version, N/voter selection, proof, and policy need trustworthy sources consistent with the threat model, beyond database storage.
 
-## 3. Phân công và quyền sở hữu file
+## 3. Roles and file ownership
 
-| Người | Sở hữu | Không yêu cầu trên máy này |
+| Person | Owns | Not required on this machine |
 | --- | --- | --- |
-| Bạn / A | public/ui: HTML/CSS/JS classic, asset local, mock runtime, manual QA và demo | Không Node/npm/Next/Docker/Prisma/SDK/test runner |
-| Tùng / B | Next host/API, DB, browser LIVE runtime, SDK bridge, bootstrap, contract/fixture, policy/QEA, build/CI/tests/merge | Không bắt UI chuyển React khi tích hợp |
-| Cùng review | Runtime interface, view/fixture, N/T/state UX, kết quả gates | Bạn review qua browser/mock và bằng chứng LIVE do Tùng cung cấp |
+| You / A | public/ui: classic HTML/CSS/JS, local assets, mock runtime, manual QA, demo | No Node/npm/Next/Docker/Prisma/SDK/test runner |
+| Tung / B | Next host/API, DB, browser LIVE runtime, SDK bridge, bootstrap, contract/fixtures, policy/QEA, build/CI/tests/merge | No UI conversion to React during integration |
+| Shared review | Runtime interface, views/fixtures, N/T/state UX, gate results | You review browser/mock and LIVE evidence provided by Tung |
 
-Quy trình đầy đủ từng người nằm ở [file của bạn](./architecture_toi.md) và [file của Tùng](./architecture_tung.md).
+The complete individual workflows are in [your guide](./architecture_toi.md) and [Tung's guide](./architecture_tung.md).
 
-### 3.1. Cấu trúc đích
+### 3.1. Target structure
 
 ~~~text
 repository-root/
 ├── architecture_toi.md / architecture_tung.md
-├── voicevault_technical_architecture.md      contract/nghiệp vụ chung, Tùng điều phối
+├── voicevault_technical_architecture.md      shared contract/business rules, coordinated by Tung
 ├── public/
-│   ├── ui/                                 bạn sở hữu
+│   ├── ui/                                 owned by you
 │   │   ├── index.html, styles.css, app.js
 │   │   ├── mock-runtime.js
 │   │   └── views/, assets/
-│   ├── integration/                        Tùng sở hữu
-│   │   ├── bootstrap.js                    classic JS, dùng được file://
-│   │   ├── contract-fixtures.js             fixture giả, tracked
-│   │   └── runtime.generated.js            generated, gitignore, chỉ LIVE
-│   └── auth/                               Tùng: callback/SSO assets theo SDK
+│   ├── integration/                        owned by Tung
+│   │   ├── bootstrap.js                    classic JS, works on file://
+│   │   ├── contract-fixtures.js             fake fixtures, tracked
+│   │   └── runtime.generated.js            generated, gitignored, LIVE only
+│   └── auth/                               Tung: SDK callback/SSO assets
 ├── src/
-│   ├── app/                                Tùng: host/redirect và API
-│   ├── contracts/                          Tùng: types/schema/encoding/fixture source
-│   ├── integration/browser-runtime.ts      Tùng: SDK/API/crypto trong browser
-│   └── server/                             Tùng: services/DB/council/policy/audit
-├── prisma/, scripts/, tests/, .github/      Tùng
-├── package.json, package-lock.json, config/ Tùng
-└── docs/integration/                        handoff mỗi người; Tùng ghi test/gates
+│   ├── app/                                Tung: host/redirect and API
+│   ├── contracts/                          Tung: types/schema/encoding/fixture source
+│   ├── integration/browser-runtime.ts      Tung: SDK/API/crypto in browser
+│   └── server/                             Tung: services/DB/council/policy/audit
+├── prisma/, scripts/, tests/, .github/      Tung
+├── package.json, package-lock.json, config/ Tung
+└── docs/integration/                        individual handoffs; Tung records tests/gates
 ~~~
 
-Một file có một owner. Bạn không sửa bootstrap/runtime/dependency để nối UI; yêu cầu Tùng thay runtime contract trước. Tùng không sửa UI để che DTO mismatch nếu chưa bàn giao ownership.
+Each file has one owner. Do not edit bootstrap/runtime/dependencies to connect UI; ask Tung to update the runtime contract first. Tung must not edit UI to hide DTO mismatches without an ownership handoff.
 
-Static UI được dùng nguyên tại /ui/index.html; Next.js phục vụ public từ URL root, không cần viết lại React. [Next.js public folder](https://nextjs.org/docs/app/api-reference/file-conventions/public-folder).
+Use the static UI unchanged at /ui/index.html; Next.js serves public from the root URL, without a React rewrite. [Next.js public folder](https://nextjs.org/docs/app/api-reference/file-conventions/public-folder).
 
-Hai checkout riêng. Chỉ checkout máy Tùng cần node_modules, env, DB, cổng app và Docker; máy bạn chỉ cần browser/editor và Git nếu có. Không cài toolchain như điều kiện bắt đầu UI.
+Use separate checkouts. Only Tung's checkout needs node_modules, env, DB, app ports, and Docker; yours needs a browser/editor and Git if available. Toolchain installation is not a prerequisite for UI work.
 
-## 4. Baseline trước khi tách branch
+## 4. Baseline before branching
 
-### 4.1. Foundation trên máy Tùng, UI local trên máy bạn
+### 4.1. Foundation on Tung's machine, local UI on yours
 
-1. Tùng kiểm tra/pin Node/npm/Docker/Next/SDK/Prisma trên máy mình; máy bạn không phải cài cùng toolchain.
-2. Bàn giao sớm runtime contract mục 5.4, bootstrap.js và contract-fixtures.js không cần build để dùng local. Hai người chốt index/app mount hook.
-3. Bạn mở public/ui/index.html bằng file://; fixture được nạp bằng classic script, không fetch JSON hoặc ES module. Mock có nhãn.
-4. Tùng scaffold/pin Next vào root repo hiện có, cấu hình phục vụ /ui/index.html, hoàn tất Tide enrollment/realm/roster bootstrap và dựng LIVE bridge.
-5. API/schema/fixture có một nguồn phía Tùng. Bạn chỉ dùng interface và view fixture, không sao chép TS/type hoặc đoán raw JSON.
-6. Tùng chạy auth/SDK/live probes, bạn review UI; gate chưa kiểm chứng vẫn FAIL/NOT RUN.
-7. Commit/push baseline lên integration/voicevault, cả hai branch cùng SHA. Không cần runtime.generated.js trên máy bạn.
+1. Tung verifies/pins Node/npm/Docker/Next/SDK/Prisma locally; your machine need not install the same toolchain.
+2. Hand over section 5.4 runtime contract, bootstrap.js, and contract-fixtures.js early, usable locally without a build. Agree the index/app mount hook together.
+3. Open public/ui/index.html through file://; classic scripts load fixtures without JSON fetches or ES modules. Label mock mode.
+4. Tung scaffolds/pins Next in the existing repository root, configures /ui/index.html, completes Tide enrollment/realm/roster bootstrap, and builds the LIVE bridge.
+5. API/schema/fixtures have one source owned by Tung. Use only the interface and view fixtures; do not duplicate TS/types or guess raw JSON.
+6. Tung runs auth/SDK/live probes; you review UI. Unverified gates remain FAIL/NOT RUN.
+7. Commit/push the baseline to integration/voicevault, with both branches at the same SHA. Your machine does not need runtime.generated.js.
 
-Manifest docs/integration/baseline.json ghi version toolchain Tùng, SDK/image/policy ID, roster hash/version, min/max và bootstrap receipt. docs/integration/gates.md tách mock/manual/LIVE, không token/secret/plaintext.
+Manifest docs/integration/baseline.json records Tung's toolchain versions, SDK/image/policy ID, roster hash/version, min/max, and bootstrap receipt. docs/integration/gates.md separates mock/manual/LIVE, with no tokens/secrets/plaintext.
 
-Quickstart latest chỉ khởi tạo; Tùng pin image digest và dependency thật sau smoke test. [Quickstart](https://docs.tide.org/get-started/Tidecloak%20Quickstart).
+Quickstart latest is only for initial setup; Tung pins real image digests and dependencies after smoke tests. [Quickstart](https://docs.tide.org/get-started/Tidecloak%20Quickstart).
 
 ### 4.2. Environment
 
-- Chỉ Tùng tạo .env/DB/realm/SDK config. .env.example không bí mật; DB SQLite trong prisma/local được gitignore.
-- Browser bundle/config công khai không chứa admin credential, client secret hoặc reporter plaintext.
-- Callback trở về origin HTTP(S) thật của /ui/index.html; file:// không đăng nhập Tide hoặc gọi API.
-- Các assets UI dùng relative path, classic defer. Không Tailwind build/CDN/npm import trên máy bạn.
-- Tùng quản lý tags/roles/policy manifest và thông báo thay đổi; không sửa console âm thầm khi đang review.
-- Không commit DB/WAL/SHM/env/token/key/realm export nhạy cảm. Public fixture chỉ dữ liệu giả.
-- Nếu bạn có URL test hợp lệ, có thể review LIVE qua browser; localhost trên máy Tùng không tự là URL truy cập từ máy bạn.
+- Only Tung creates .env/DB/realm/SDK config. .env.example contains no secrets; SQLite DBs in prisma/local are gitignored.
+- Public browser bundles/config contain no admin credentials, client secrets, or reporter plaintext.
+- Callback returns to the real HTTP(S) origin of /ui/index.html; file:// never logs in to Tide or calls APIs.
+- UI assets use relative paths and deferred classic scripts. No Tailwind build/CDN/npm imports on your machine.
+- Tung manages tags/roles/policy manifests and announces changes; no silent console edits during review.
+- Do not commit DB/WAL/SHM/env/tokens/keys/sensitive realm exports. Public fixtures contain fake data only.
+- With an existing valid test URL, you can review LIVE in a browser; Tung's localhost is not automatically accessible from your machine.
 
-### 4.3. Script phải tạo ở M0
+### 4.3. Scripts required at M0
 
-Chưa có các script này trong repo hiện tại. Tùng phải tạo và xác minh; mọi lệnh trong bảng chạy trên máy Tùng, không trên máy bạn.
+This table specifies required target scripts. Tung must create and verify them; all commands run on his machine, not yours. Their presence alone does not establish LIVE verification.
 
-| Script | Trách nhiệm |
+| Script | Responsibility |
 | --- | --- |
-| build:fixtures | Export JS fixture giả cho file://, đối chiếu contract |
-| build:bridge | Bundle SDK/runtime browser trước khi chạy/build Next |
-| dev/build/start | Build bridge trước Next dev/build; start dùng artifact đã build |
-| test:ui:file | Playwright mở file://, không SDK/API, kiểm tra local UI |
-| test:ui:live | Playwright qua /ui/index.html, runtime LIVE/API thật |
+| build:fixtures | Export fake JS fixtures for file:// and check against contract |
+| build:bridge | Bundle browser SDK/runtime before running/building Next |
+| dev/build/start | Build bridge before Next dev/build; start uses built artifacts |
+| test:ui:file | Playwright opens file:// without SDK/API and checks local UI |
+| test:ui:live | Playwright through /ui/index.html with real LIVE runtime/API |
 | typecheck | tsc --noEmit |
-| lint | ESLint đã cấu hình; không mặc định mọi Next đều có next lint |
-| test:unit | Vitest: encoding, thuật toán, service/client adapter |
-| test:contracts | DTO/schema/fixture success/error và hash vectors |
-| test:integration | API + DB test riêng; ghi rõ case cần realm thật |
-| test:security:live | G1–G5 với Tide thật; thiếu cấu hình báo NOT RUN/không thành công |
-| test:e2e | Playwright, phiên riêng theo persona |
+| lint | Configured ESLint; do not assume every Next version provides next lint |
+| test:unit | Vitest: encoding, algorithms, service/client adapters |
+| test:contracts | DTO/schema/fixture success/error cases and hash vectors |
+| test:integration | Separate API + DB tests; identify cases requiring a real realm |
+| test:security:live | G1–G5 with real Tide; missing config reports NOT RUN/unsuccessful |
+| test:e2e | Playwright with separate sessions per persona |
 | db:validate/db:generate | prisma validate / prisma generate |
-| db:migrate:dev | prisma migrate dev, chỉ B tạo migration |
-| db:migrate:deploy | prisma migrate deploy, áp migration đã commit |
-| db:seed | tsx prisma/seed.ts, idempotent trên DB demo đã chỉ định |
-| check | typecheck + lint + unit + contracts + build; không thay live tests |
+| db:migrate:dev | prisma migrate dev; only B creates migrations |
+| db:migrate:deploy | prisma migrate deploy, applying committed migrations |
+| db:seed | tsx prisma/seed.ts, idempotent on the specified demo DB |
+| check | typecheck + lint + unit + contracts + build; does not replace live tests |
 
-npm ci yêu cầu manifest/lockfile khớp, không tạo lockfile mới. [npm ci](https://docs.npmjs.com/cli/v11/commands/npm-ci/).
+npm ci requires matching manifest/lockfile and does not create a new lockfile. [npm ci](https://docs.npmjs.com/cli/v11/commands/npm-ci/).
 
-## 5. Contract v1 dùng chung
+## 5. Shared v1 contract
 
-Tùng giữ src/contracts và export contract-fixtures.js; bạn review view/runtime interface trước tách branch, không import TypeScript vào UI classic. UUID browser tạo trước mã hóa, server validate/chống trùng và không đổi ID đã ràng buộc trong proof. Display name không phải ID phân quyền. Mọi request/response validate runtime bằng schema chung; type không thay validation.
+Tung owns src/contracts and exports contract-fixtures.js; you review views/runtime interface before branching and do not import TypeScript into classic UI. The browser generates UUIDs before encryption; the server validates/prevents duplicates and never changes proof-bound IDs. Display names are not authorization IDs. Validate every request/response at runtime using shared schemas; types do not replace validation.
 
-Thay contract phải có schema + fixture + contract test + ví dụ request/response; merge trước consumer. Breaking change có version mới hoặc chuyển đồng bộ cùng milestone.
+Contract changes require schema + fixture + contract test + request/response examples, merged before consumers. Breaking changes require a new version or synchronized migration within one milestone.
 
-### 5.1. Type lõi
+### 5.1. Core types
 
-Đây là interface nội bộ cần triển khai, không phải API có sẵn của Tide.
+These are internal interfaces to implement, not existing Tide APIs.
 
 ~~~typescript
 export type ResourceKind = "IDEA" | "REPORT" | "COUNCIL_CHANGE";
@@ -241,14 +241,14 @@ export interface ApprovalContext {
   requestId: string;
   binding: ResourceBinding;
   payloadHash: string;
-  ciphertextHash?: string; // Bắt buộc REVEAL_REPORT_IDENTITY; không dùng với CHANGE_COUNCIL.
+  ciphertextHash?: string; // Required for REVEAL_REPORT_IDENTITY; unused for CHANGE_COUNCIL.
   operation: VotingPurpose;
   votingAssignmentHash: string;
   councilVersion: number;
   councilRosterHash: string;
   voterCount: number;
   quorumRequired: number;
-  recipientSubject: string; // Recipient identity hoặc executor đề xuất; ràng buộc trong proof.
+  recipientSubject: string; // Identity recipient or proposal executor; bound into proof.
   purpose: string;
   nonce: string;
   expiresAt: string;
@@ -275,8 +275,8 @@ export interface CreateCouncilChangeRequest {
   id: string;
   expectedCouncilVersion: number;
   reason: string;
-  proposedMembers: CouncilMemberSpec[]; // Toàn roster đích; server tính diff/hash.
-  proposedSelectionPolicy: VotingSelectionPolicy; // Toàn policy đích, kể cả khi không đổi.
+  proposedMembers: CouncilMemberSpec[]; // Complete target roster; server computes diff/hash.
+  proposedSelectionPolicy: VotingSelectionPolicy; // Complete target policy, even when unchanged.
 }
 export type ApiResult<T> =
   | { ok: true; data: T; requestId: string; contractVersion: "v1" }
@@ -290,42 +290,42 @@ export type ApiResult<T> =
     };
 ~~~
 
-Binding rõ chỉ hỗ trợ routing/check sơ bộ; bản tương ứng phải nằm trong payload được bảo vệ/xác thực. Server tính lại content/ciphertext hash theo encoding đã chốt. Proof là artifact G3 đã kiểm chứng, không phải chuỗi tùy ý/HMAC backend tự cấp. Juror lấy từ token và đối chiếu signer, không lấy từ body. Schema IdentityEnvelope chỉ chấp nhận binding IDEA/REPORT; COUNCIL_CHANGE không có identity envelope. Với vote đổi hội đồng, payloadHash ràng buộc roster đích/diff/version; với reveal, payloadHash ràng buộc context mở và ciphertextHash bắt buộc.
+Visible binding supports routing/preliminary checks only; its counterpart must be in the protected/authenticated payload. The server recomputes content/ciphertext hashes using agreed encoding. Proof is a verified G3 artifact, not an arbitrary string/backend-issued HMAC. Derive the juror from the token and match the signer, never from the body. IdentityEnvelope schema accepts IDEA/REPORT bindings only; COUNCIL_CHANGE has no identity envelope. For council votes, payloadHash binds target roster/diff/version; for reveal, it binds reveal context and requires ciphertextHash.
 
-### 5.2. View phải chốt ở M0
+### 5.2. Views to finalize at M0
 
-| View | Ngữ nghĩa |
+| View | Semantics |
 | --- | --- |
-| IdeaView | Nội dung theo quyền, status/version, endorsement, consent, capabilities server tính; public credit sau xác minh |
-| ReportView | Nội dung theo quyền, roster version/hash, N/T và assignment bất biến, tiến độ approval; list không reporter ID/plaintext/envelope |
+| IdeaView | Permission-scoped content, status/version, endorsement, consent, server-computed capabilities; public credit after verification |
+| ReportView | Permission-scoped content, roster version/hash, immutable N/T and assignment, approval progress; lists exclude reporter ID/plaintext/envelope |
 | UnmaskRequestView | votingRequestId, context hash/state/version, N/T, valid approval count, independent approval, expiry |
-| CouncilView | Roster hiện hành với ID/role/independent, version/hash; UI không có thao tác sửa trực tiếp |
-| CouncilChangeView | Roster/version gốc, diff/roster đích, votingRequestId, N/T, assignment, trạng thái và kết quả apply; chưa apply không đổi CouncilView |
-| DirectoryView | ID/display name để chọn; không email/sơ đồ nhân sự đầy đủ cho mọi người |
-| RevealChallenge | Context và dữ liệu công khai cho flow đã kiểm chứng; không chỉ allowDecrypt=true |
-| AuditEventView | Nguồn, kết quả, request/resource ID an toàn; không danh tính người nộp |
+| CouncilView | Current roster with ID/role/independent, version/hash; no direct UI editing |
+| CouncilChangeView | Base roster/version, target diff/roster, votingRequestId, N/T, assignment, state and apply result; CouncilView stays unchanged until apply |
+| DirectoryView | Selectable ID/display name; no email/full personnel graph exposed to everyone |
+| RevealChallenge | Context and public data for a verified flow; more than allowDecrypt=true |
+| AuditEventView | Source, result, safe request/resource IDs; no submitter identity |
 
-Capability giúp UI hiển thị, không thay quyết định mật mã. Không trả nguyên Prisma object cho client.
+Capabilities guide UI presentation and do not replace cryptographic decisions. Never return raw Prisma objects to clients.
 
-### 5.3. Mock để bạn làm độc lập
+### 5.3. Mock for independent UI work
 
-Bạn implement mock-runtime.js theo interface mục 5.4, dùng window.VoiceVaultFixtures từ script local. Không fetch JSON/import module/CDN để mở file://. Mock có state memory giả và banner rõ, không cần crypto để render.
+Implement mock-runtime.js against section 5.4 using window.VoiceVaultFixtures from a local script. No JSON fetch/module imports/CDN on file://. Mock uses fake in-memory state and a clear banner; crypto is not needed to render it.
 
-file:// chỉ MOCK. HTTP(S) chỉ LIVE; runtime/config/service lỗi hiện lỗi, không fallback. Live tests phải đối chiếu request thật và mode LIVE, không chỉ badge. Có fixture N=3/4/5, T=2/3/4 và council pending/READY/APPLYING/APPLIED/STALE.
+file:// is MOCK only. HTTP(S) is LIVE only; runtime/config/service errors display errors with no fallback. LIVE tests verify real requests and LIVE mode, beyond a badge. Include N=3/4/5, T=2/3/4 fixtures and council pending/READY/APPLYING/APPLIED/STALE states.
 
-### 5.4. Runtime bridge v1 giữa UI và hệ thống
+### 5.4. Runtime bridge v1 between UI and system
 
-Đây là contract nội bộ mới để tách toolchain. Tùng cung cấp LIVE implementation; bạn cung cấp MOCK implementation. Cùng shape input/output, cùng contractVersion=v1 và view model; UI không fetch API hoặc đọc raw token.
+This new internal contract separates toolchains. Tung supplies LIVE implementation; you supply MOCK implementation. Both use matching inputs/outputs, contractVersion=v1, and view models; UI neither fetches APIs nor reads raw tokens.
 
 ~~~text
-window.VoiceVaultUI.mount(runtime)      // Bạn định nghĩa, bootstrap gọi một lần.
-window.createVoiceVaultMock(fixtures)  // Bạn định nghĩa, chỉ file:// sử dụng.
+window.VoiceVaultUI.mount(runtime)      // Defined by you; bootstrap calls it once.
+window.createVoiceVaultMock(fixtures)  // Defined by you; used only on file://.
 
 runtime.contractVersion = "v1"
-runtime.mode = "MOCK" hoặc "LIVE"
+runtime.mode = "MOCK" or "LIVE"
 runtime.init() -> Promise<ApiResult<SessionView>>
 runtime.getSession() -> Promise<ApiResult<SessionView>>
-runtime.login() / runtime.logout() -> bắt đầu flow; có thể redirect trong LIVE
+runtime.login() / runtime.logout() -> start flow; may redirect in LIVE
 runtime.listIdeas(query) -> Promise<ApiResult<Page<IdeaView>>>
 runtime.submitIdea(formInput) -> Promise<ApiResult<IdeaView>>
 runtime.endorseIdea(id, expectedVersion) -> Promise<ApiResult<IdeaView>>
@@ -344,77 +344,77 @@ runtime.revealIdentity(resourceKind, resourceId, requestId) -> Promise<ApiResult
 runtime.listAudit(query) -> Promise<ApiResult<Page<AuditEventView>>>
 ~~~
 
-Tùng định nghĩa trong contract các view còn thiếu trước U1: SessionView (authenticated/displayName/capabilities, không token), Page (items/nextCursor), VotingRequestView (operation/context/N/T/voters/validApprovals/state/expiry), IdentityView (chỉ view tạm, không persist) và từng form schema. Khi chưa đăng nhập, init/getSession trả SessionView với authenticated=false để UI hiện nút đăng nhập; không tự ép login loop. Các Page/View chỉ là dữ liệu JS serializable; UI không phải dùng framework.
+Before U1, Tung defines missing contract views: SessionView (authenticated/displayName/capabilities, no token), Page (items/nextCursor), VotingRequestView (operation/context/N/T/voters/validApprovals/state/expiry), IdentityView (temporary view only, never persisted), and each form schema. When unauthenticated, init/getSession return SessionView with authenticated=false so UI shows a sign-in action; do not force a login loop. Page/View values are serializable JS data; no UI framework is required.
 
-Phân biệt formInput và API DTO:
+Distinguish formInput from API DTOs:
 
-| UI đưa cho runtime | Runtime LIVE phía browser làm |
+| UI passes to runtime | Browser LIVE runtime responsibilities |
 | --- | --- |
-| submitIdea: title/description/category/publishCreditOnApproval | Lấy identity phiên, tạo UUID/binding/hash/proof/envelope và gọi POST /ideas |
-| submitReport: title/evidenceDetails/accusedPersonIds/contact/consent theo schema | Giữ contact/identity trong browser, mã hóa rồi gửi API DTO; không gửi plaintext identity lên server |
-| castVote: APPROVE hoặc DENY/reason trên votingRequestId | Lấy context bất biến, tạo/verify proof theo SDK, submit /voting-requests/:id/approvals |
-| decideIdea/council proposal/apply | Tạo hoặc chuyển artifact theo policy và API; UI không tự ký/cấp grant |
-| revealIdentity | Lấy challenge/envelope, crypto/verify trong browser; không POST plaintext về server |
+| submitIdea: title/description/category/publishCreditOnApproval | Derive session identity, create UUID/binding/hash/proof/envelope, call POST /ideas |
+| submitReport: title/evidenceDetails/accusedPersonIds/contact/consent according to schema | Keep contact/identity in browser, encrypt, send API DTO; never send plaintext identity to server |
+| castVote: APPROVE or DENY/reason on votingRequestId | Obtain immutable context, create/verify SDK proof, submit /voting-requests/:id/approvals |
+| decideIdea/council proposal/apply | Create or forward artifacts under policy/API; UI never signs or issues grants itself |
+| revealIdentity | Obtain challenge/envelope, perform browser crypto/verification; never POST plaintext to server |
 
-UI chỉ render ApiResult/capabilities/N/T/state; không tự quyết quyền. IdentityView bỏ khỏi state khi đóng/logout, không log/storage/SSR. Tùng thực hiện canonical encoding/runtime validation, không yêu cầu bạn cài SDK để gọi một hàm.
+UI renders only ApiResult/capabilities/N/T/state and does not decide permissions. Remove IdentityView from state on close/logout; no logs/storage/SSR. Tung implements canonical encoding/runtime validation without requiring SDK installation on your machine to call a function.
 
-Một nguồn contract phía Tùng sinh fixture JS track trong Git; không để mock và LIVE tự đoán tên field. bootstrap.js do Tùng sở hữu, load order fixture -> mock factory -> app mount definition -> bootstrap. Generated LIVE bundle được tải chỉ trên HTTP(S), version mismatch dừng CONTRACT_MISMATCH; mất bridge/config không chuyển mock.
+One contract source owned by Tung generates JS fixtures tracked in Git; mock and LIVE must not independently guess field names. Tung owns bootstrap.js; load order is fixture -> mock factory -> app mount definition -> bootstrap. Load generated LIVE bundle only on HTTP(S); version mismatch stops with CONTRACT_MISMATCH. Missing bridge/config never triggers mock fallback.
 
-## 6. API, auth và xử lý lỗi
+## 6. API, auth, and error handling
 
-Prefix /api/v1; mọi endpoint trừ health đều auth. List phân trang tối đa 50, scope organization và quyền từng hồ sơ.
+Prefix /api/v1; every endpoint except health requires auth. Lists are paginated, at most 50 items, scoped to organization and record-level permissions.
 
-| Method/path | Trách nhiệm |
+| Method/path | Responsibility |
 | --- | --- |
-| GET /health | Liveness không nhạy cảm, không config/token |
-| GET /me | Phiên thật, organization và capabilities |
-| GET /directory | ID có thể chọn trong cùng org |
-| GET /ideas | IdeaView[], không identity envelope |
-| POST /ideas | CreateIdeaRequest, validate/binding/idempotency/persist thật |
-| POST /ideas/:id/endorse | Manager, expectedVersion, actor từ token |
-| POST /ideas/:id/decision | Director, decision/reason/expectedVersion và decision artifact |
+| GET /health | Nonsensitive liveness, no config/tokens |
+| GET /me | Real session, organization, capabilities |
+| GET /directory | Selectable IDs within the same org |
+| GET /ideas | IdeaView[], no identity envelope |
+| POST /ideas | CreateIdeaRequest, real validation/binding/idempotency/persistence |
+| POST /ideas/:id/endorse | Manager, expectedVersion, actor from token |
+| POST /ideas/:id/decision | Director, decision/reason/expectedVersion and decision artifact |
 | POST /ideas/:id/reveal-challenges | APPROVED + consent + verified decision, recipient/purpose |
-| GET /reports | Chỉ hồ sơ được phép đọc, không bảng công khai |
-| POST /reports | Multi-accused, jury chọn một lần, persist thật |
-| POST /reports/:id/unmask-requests | Assigned juror, recipient/purpose/version; chưa mở |
-| GET /unmask-requests/:id | View theo quyền, không plaintext |
-| GET /voting-requests/:id | Vote context/snapshot/N/T và tiến độ theo quyền, dùng chung hai luồng |
-| POST /voting-requests/:id/approvals | SubmitApprovalRequest; verify proof/membership/context + transaction, dùng chung reveal và đổi hội đồng |
-| POST /unmask-requests/:id/reveal-challenges | Adapter xác minh bằng chứng rồi tạo challenge thật |
-| GET /resources/:kind/:id/identity-envelope | Challenge/request hợp lệ, đúng recipient, ciphertext không plaintext |
-| GET /council | Roster/version/hash hiện hành, không endpoint PATCH roster trực tiếp |
-| GET /council/change-requests | Danh sách CouncilChangeView phân trang theo quyền; phục vụ runtime.listCouncilChanges |
-| POST /council/change-requests | CreateCouncilChangeRequest; snapshot roster cũ, bốc N/người một lần, tạo VotingRequest |
-| GET /council/change-requests/:id | Diff/roster đích, N/T, tiến độ vote, apply state |
-| POST /council/change-requests/:id/apply | Executor hợp lệ; verify threshold/policy/version, outbox/QEA nếu cần, không tự ghi đè roster |
-| POST /governance/role-change-requests | QEA adapter cho thay đổi whitelist; thay đổi liên quan council bắt buộc tham chiếu proposal đã có vote hợp lệ, không đường tắt |
-| GET /audit | Role audit, redaction, pagination |
+| GET /reports | Authorized records only, no public board |
+| POST /reports | Multiple accused people, one-time jury selection, real persistence |
+| POST /reports/:id/unmask-requests | Assigned juror, recipient/purpose/version; no reveal yet |
+| GET /unmask-requests/:id | Permission-scoped view, no plaintext |
+| GET /voting-requests/:id | Permission-scoped vote context/snapshot/N/T/progress, shared by both flows |
+| POST /voting-requests/:id/approvals | SubmitApprovalRequest; verify proof/membership/context + transaction, shared by reveal and council change |
+| POST /unmask-requests/:id/reveal-challenges | Adapter verifies evidence, then creates a real challenge |
+| GET /resources/:kind/:id/identity-envelope | Valid challenge/request, correct recipient; ciphertext only, no plaintext |
+| GET /council | Current roster/version/hash; no direct roster PATCH endpoint |
+| GET /council/change-requests | Permission-scoped paginated CouncilChangeView list for runtime.listCouncilChanges |
+| POST /council/change-requests | CreateCouncilChangeRequest; snapshot old roster, draw N/voters once, create VotingRequest |
+| GET /council/change-requests/:id | Target diff/roster, N/T, vote progress, apply state |
+| POST /council/change-requests/:id/apply | Valid executor; verify threshold/policy/version, outbox/QEA if required, no unchecked roster overwrite |
+| POST /governance/role-change-requests | QEA adapter for whitelisted changes; council-related changes must reference a proposal with valid votes, with no shortcut |
+| GET /audit | Audit role, redaction, pagination |
 
-POST tạo resource có Idempotency-Key UUID gắn org/scope/payload hash: cùng key/body trả kết quả cũ, body khác trả IDEMPOTENCY_CONFLICT. Không lưu subject/JWT người nộp trong idempotency record; persist cùng transaction để retry không tạo lại report/assignment. Decision, approval, unmask/council-change/governance operation cũng idempotent. Tạo lại cùng payload đổi council trên cùng base version khi đề xuất còn hoạt động phải trỏ cùng proposal/voting assignment hoặc bị từ chối, không dùng UUID mới để bốc lại. External call có outbox/request ID, không giữ DB transaction khi chờ mạng.
+Resource-creation POSTs carry an Idempotency-Key UUID bound to org/scope/payload hash: same key/body returns the prior result; different body returns IDEMPOTENCY_CONFLICT. Never store submitter subject/JWT in idempotency records; persist within the same transaction so retries cannot recreate reports/assignments. Decisions, approvals, unmask/council-change/governance operations are also idempotent. Resubmitting the same council-change payload on the same base version while a proposal is active must reference the same proposal/voting assignment or be rejected; a new UUID cannot redraw voters. External calls use outbox/request IDs; do not hold DB transactions while waiting for the network.
 
-| HTTP/code | Ngữ nghĩa |
+| HTTP/code | Semantics |
 | --- | --- |
-| 400 INVALID_REQUEST | Schema/UUID/encoding sai, không echo payload nhạy cảm |
-| 401 UNAUTHENTICATED | Token thiếu/giả/hết hạn/sai issuer/client |
-| 403 FORBIDDEN | App từ chối; nguồn APP, không gọi là Fabric |
-| 404 NOT_FOUND | Không có hoặc không được biết tồn tại, tránh cross-org disclosure |
-| 409 VERSION_CONFLICT | Refresh trước thao tác lại |
-| 409 COUNCIL_VERSION_CONFLICT | Roster đã đổi; proposal cũ thành STALE, không áp diff/phiếu lên version mới |
-| 403 COUNCIL_VOTE_REQUIRED | Cố đổi membership/role/independent trực tiếp hoặc bỏ qua vote |
-| 409 BOOTSTRAP_ALREADY_COMPLETED | Cố khởi tạo lại roster để vượt quy trình vote |
-| 409 QUORUM_PENDING | Giữ khóa, không lặp decrypt |
-| 409 IDEMPOTENCY_CONFLICT | Key cũ/body khác |
-| 409 INSUFFICIENT_ELIGIBLE_JURORS | Đang chờ jury, không hạ ngưỡng |
-| 410 APPROVAL_EXPIRED | Request mới, không dùng phiếu cũ |
-| 422 INTEGRITY_MISMATCH | Không mở/không verified credit |
-| 403 POLICY_DENIED | Chỉ FABRIC khi dịch vụ thật trả deny đã xác nhận |
-| 503 POLICY_UNAVAILABLE | Adapter chưa kiểm chứng/dịch vụ lỗi; giữ khóa |
+| 400 INVALID_REQUEST | Invalid schema/UUID/encoding; never echo sensitive payloads |
+| 401 UNAUTHENTICATED | Missing/forged/expired token or wrong issuer/client |
+| 403 FORBIDDEN | Application denial; source APP, never label it Fabric |
+| 404 NOT_FOUND | Missing or existence must not be disclosed; prevent cross-org disclosure |
+| 409 VERSION_CONFLICT | Refresh before retrying the action |
+| 409 COUNCIL_VERSION_CONFLICT | Roster changed; old proposal becomes STALE; never apply its diff/votes to the new version |
+| 403 COUNCIL_VOTE_REQUIRED | Attempted direct membership/role/independent edit or voting bypass |
+| 409 BOOTSTRAP_ALREADY_COMPLETED | Attempted roster reinitialization to bypass voting |
+| 409 QUORUM_PENDING | Remain locked; do not repeat decryption |
+| 409 IDEMPOTENCY_CONFLICT | Existing key with a different body |
+| 409 INSUFFICIENT_ELIGIBLE_JURORS | Waiting for jury; do not lower threshold |
+| 410 APPROVAL_EXPIRED | New request required; never reuse old votes |
+| 422 INTEGRITY_MISMATCH | No reveal or verified credit |
+| 403 POLICY_DENIED | FABRIC only when a real service denial is confirmed |
+| 503 POLICY_UNAVAILABLE | Unverified adapter/service failure; remain locked |
 
-POST report lưu được nhưng thiếu jury trả 201 + AWAITING_ELIGIBLE_JURY, không lỗi khiến user tưởng chưa lưu. Mã insufficient dùng khi thử lập jury/yêu cầu mở hồ sơ đang chờ.
+A saved report without enough jurors returns 201 + AWAITING_ELIGIBLE_JURY, rather than an error suggesting it was not saved. Use the insufficient code when attempting to form a jury/request reveal for a waiting record.
 
-### 6.1. Snippet auth đã sửa
+### 6.1. Corrected auth snippet
 
-Khung auth dưới chưa thay route hoàn chỉnh: B còn thêm validation/org scope/persistence/error mapping.
+This auth skeleton does not replace complete routes: B must add validation/org scoping/persistence/error mapping.
 
 ~~~typescript
 import "server-only";
@@ -428,7 +428,7 @@ export async function authenticateEmployee(req: Request) {
     tidecloakServerConfig, match[1], ["employee"],
   );
   if (!payload) return null;
-  // Claim riêng của app phải cấu hình mapper/test; không mặc định Tide có sẵn.
+  // App-specific claims require mapper configuration/tests; do not assume Tide supplies them.
   if (typeof payload.sub !== "string" || typeof payload.organization_id !== "string") {
     return null;
   }
@@ -436,73 +436,73 @@ export async function authenticateEmployee(req: Request) {
 }
 ~~~
 
-M0 cấu hình employee role cho persona được nộp. Director/juror/admin route kiểm tra thêm quyền; allowedRoles có ngữ nghĩa OR, không thay điều kiện AND. Prefix Bearer không xác thực. [Verify JWT](https://docs.tide.org/Languages/NextJS/VerifyJWT).
+At M0 configure the employee role for personas allowed to submit. Director/juror/admin routes check additional permissions; allowedRoles uses OR semantics and does not replace AND conditions. A Bearer prefix is not authentication. [Verify JWT](https://docs.tide.org/Languages/NextJS/VerifyJWT).
 
-Nếu chọn cookie phải có CSRF/cookie policy. Bật DPoP phía client chưa đủ; resource server phải verify proof tương ứng.
+Cookie auth requires CSRF/cookie policy. Client-side DPoP alone is insufficient; the resource server must verify corresponding proofs.
 
-## 7. State machine và luồng nghiệp vụ
+## 7. State machines and business flows
 
-### 7.1. Ý tưởng
+### 7.1. Ideas
 
 ~~~text
 UNDER_REVIEW -> ENDORSED -> APPROVED
       |             |
       +-----------> REJECTED
 APPROVED + consent + verified decision
-  -> challenge -> browser decrypt/verify -> public credit theo consent
+  -> challenge -> browser decrypt/verify -> public credit under consent
 ~~~
 
-MVP yêu cầu endorse trước approve; REJECTED terminal, không reopen. APPROVED không đồng nghĩa đã mở/công khai. Transition kiểm tra role/org/expectedVersion trong transaction.
+MVP requires endorsement before approval; REJECTED is terminal and cannot reopen. APPROVED does not mean identity has been revealed/published. Transitions check role/org/expectedVersion inside a transaction.
 
-1. UI của bạn gọi submitIdea bằng form input; browser runtime do Tùng viết lấy org/identity từ phiên, sinh UUID và canonicalize/hash nội dung.
-2. Payload bảo vệ gồm binding, tác giả xác thực, consent và origin proof G4. Nếu tự công khai lúc approve, user đồng ý rõ từ lúc nộp.
-3. B validate/hash/persist thật và trả receipt, không submitter FK.
-4. Manager endorse riêng; không PATCH tác giả/ciphertext/nội dung đã nộp.
-5. Director tạo decision artifact theo cơ chế đã xác minh; sửa status không tạo proof hợp lệ.
-6. Recipient thực hiện challenge qua browser runtime của Tùng; runtime validate schema/proof/binding/hash rồi UI mới hiện tên.
-7. Public credit chỉ lưu khi có consent và artifact G4 xác minh được, không tin tên tùy ý browser gửi. Chưa có thì chỉ hiện trong phiên hợp lệ và công bố ledger chưa được kiểm chứng.
+1. Your UI calls submitIdea with form input; Tung's browser runtime derives org/identity from the session, generates UUID, and canonicalizes/hashes content.
+2. Protected payload contains binding, authenticated author, consent, and G4 origin proof. Automatic publication on approval requires explicit consent at submission.
+3. B performs real validation/hashing/persistence and returns a receipt, with no submitter FK.
+4. Manager endorses separately; no PATCH of submitted authorship/ciphertext/content.
+5. Director creates a decision artifact through the verified mechanism; changing status cannot create valid proof.
+6. Recipient completes a challenge through Tung's browser runtime; runtime validates schema/proof/binding/hash before UI displays the name.
+7. Persist public credit only with consent and a verifiable G4 artifact; never trust arbitrary names sent by the browser. Otherwise display only in a valid session and disclose that the ledger is unverified.
 
-REJECTED không sinh yêu cầu mở trong MVP. UI ghi “Không công khai danh tính khi từ chối”, không “SEALED FOREVER” hoặc “Zero Ridicule”.
+REJECTED creates no reveal request in MVP. UI says “Identity is not published after rejection”, avoiding “SEALED FOREVER” or “Zero Ridicule”.
 
-### 7.2. Báo cáo
+### 7.2. Reports
 
 ~~~text
-Report: nhận -> AWAITING_ELIGIBLE_JURY hoặc INVESTIGATING -> RESOLVED
+Report: received -> AWAITING_ELIGIBLE_JURY or INVESTIGATING -> RESOLVED
 UnmaskRequest: COLLECTING -> READY -> GRANTED
                     |         |
                     +-------> EXPIRED
                     +-------> DENIED
 ~~~
 
-READY là tiến độ, chưa là quyền mật mã. GRANTED sau adapter verify/cấp authorization thật. Timeout external call cần đối soát request ID; grant không chứng minh browser đã xem plaintext.
+READY indicates progress, not cryptographic authority. GRANTED follows adapter verification/real authorization. Reconcile external-call timeouts by request ID; a grant does not prove the browser viewed plaintext.
 
-1. UI của bạn gọi submitReport với evidence giả và nhiều accused IDs; browser runtime của Tùng tạo envelope, không nhận department tự khai để quyết định CoI.
-2. B lấy roster hội đồng đã chốt từ đầu, resolve directory/CoI và snapshot policy/roster. Bốc N trong khoảng hợp lệ rồi bốc N người một lần; khóa N, danh sách và T = ceil(2 × N / 3), hoặc lưu chờ.
-3. Assigned juror tạo UnmaskRequest liên kết VotingRequest, gắn resource/binding, ciphertext/assignment/roster hash/version, N/T, recipient/purpose/nonce/expiry. Các yêu cầu mở trên cùng assignment của phản ánh không bốc lại N/người để tìm hội đồng thuận lợi.
-4. Mỗi juror xem cùng context, phiên riêng, approve/deny bằng proof verify được. MVP: một DENY hợp lệ kết thúc request, xem lại cần request mới.
-5. Đủ T APPROVE từ những người khác nhau có ít nhất một independent tạo READY; adapter submit bằng chứng. Fabric tự từ chối dưới ngưỡng/context sai; người không vote/offline không làm giảm mẫu số N.
-6. Recipient đúng context/phiên mở; plaintext không gửi API/audit.
-7. Expiry hoặc đổi assignment/policy/content làm phiếu cũ không còn áp dụng; không reuse cho request mới. Khi roster hiện hành đổi, request đang chờ được đánh dấu STALE và chặn grant mới theo mục 10.3.
+1. Your UI calls submitReport with fake evidence and multiple accused IDs; Tung's browser runtime creates the envelope and does not accept self-declared departments for CoI decisions.
+2. B uses the roster fixed at initialization, resolves directory/CoI, and snapshots policy/roster. Draw N within valid bounds, then N people once; lock N, voter list, and T = ceil(2 × N / 3), or save a waiting record.
+3. An assigned juror creates an UnmaskRequest linked to VotingRequest, binding resource/binding, ciphertext/assignment/roster hash/version, N/T, recipient/purpose/nonce/expiry. Reveal requests on the same report assignment do not redraw N/voters to seek a favorable council.
+4. Each juror sees the same context in a separate session and approves/denies with verifiable proof. MVP: one valid DENY terminates the request; reconsideration requires a new request.
+5. T distinct APPROVE votes including at least one independent create READY; adapter submits evidence. Fabric itself rejects insufficient thresholds/wrong context; abstaining/offline members never reduce denominator N.
+6. The recipient reveals in the correct context/session; plaintext never goes to API/audit.
+7. Expiry or assignment/policy/content changes invalidate old votes; never reuse them for a new request. When the current roster changes, pending requests become STALE and new grants are blocked under section 10.3.
 
-## 8. SDK và chính sách TideCloak
+## 8. SDK and TideCloak policy
 
-### 8.1. Ma trận quyền mục tiêu
+### 8.1. Target permission matrix
 
-| Persona | Nghiệp vụ | Điều kiện mở |
+| Persona | Business action | Reveal conditions |
 | --- | --- | --- |
-| An/employee | Nộp hồ sơ | Không đọc identity người khác |
-| Binh/manager | Ý tưởng được giao, endorse | Không mở tác giả/reporter |
-| Chi/director | Quyết định ý tưởng | APPROVED + consent + proof, đúng recipient |
-| Dave/it_admin | Vận hành, đề xuất đổi quyền | Không tự có decrypt |
-| Eva/Frank/Grace/Henry/Iris | Roster hội đồng được chốt lúc bootstrap | Chỉ assignment ngẫu nhiên đúng N/T, không CoI, đủ proof, đúng recipient |
-| Thành viên được đề xuất thêm | Chưa có quyền hội đồng | Chỉ có quyền sau proposal đã vote đủ và APPLIED |
-| Governance admins | Đổi IAM/policy | Không mặc nhiên là jury/recipient |
+| An/employee | Submit records | Cannot read other people's identities |
+| Binh/manager | Assigned ideas, endorsement | Cannot reveal author/reporter |
+| Chi/director | Idea decisions | APPROVED + consent + proof, correct recipient |
+| Dave/it_admin | Operations, permission-change proposals | No automatic decrypt permission |
+| Eva/Frank/Grace/Henry/Iris | Council roster fixed at bootstrap | Random assignment with correct N/T, no CoI, sufficient proof, correct recipient |
+| Proposed new member | No council permission yet | Permission only after sufficient votes and APPLIED proposal |
+| Governance admins | IAM/policy changes | Not automatically jurors/recipients |
 
-Không cấp decrypt role theo tag cho toàn pool/director rồi dựa vào UI trì hoãn gọi. Primitive tag không thực thi resource policy thì dùng cơ chế được Tide hỗ trợ và chứng minh, hoặc giữ khóa.
+Do not grant tag decrypt roles to the entire pool/director and rely on delayed UI calls. If primitive tags cannot enforce resource policy, use a supported, proven Tide mechanism or keep reveal locked.
 
-### 8.2. Wrapper SDK phía Tùng trong browser runtime
+### 8.2. Tung's SDK wrapper in browser runtime
 
-SDK reference dùng mảng item. Wrapper này chỉ chuẩn hóa primitive tag, không tự thêm quorum/state policy và không là reveal hoàn chỉnh. Dùng smoke test hoặc khi G1/G2 xác nhận flow phù hợp.
+SDK references use item arrays. This wrapper normalizes primitive tags only; it adds no quorum/state policy and is not a complete reveal flow. Use for smoke tests or when G1/G2 confirm a suitable flow.
 
 ~~~typescript
 type EncryptItem = { data: string | Uint8Array; tags: string[] };
@@ -532,11 +532,11 @@ export async function decryptJson<T>(
 }
 ~~~
 
-Bind function đúng instance/hook đã pin. Validate runtime, không chỉ as T. Tên selfencrypt/selfdecrypt chưa xác nhận semantics cross-user. [Next SDK](https://docs.tide.org/Languages/NextJS/tidecloak-nextjs-reference), [JS types](https://docs.tide.org/Languages/JavaScript/tidecloak-js-reference).
+Bind functions to the correct pinned instance/hook. Validate at runtime instead of only using as T. The names selfencrypt/selfdecrypt do not establish cross-user semantics. [Next SDK](https://docs.tide.org/Languages/NextJS/tidecloak-nextjs-reference), [JS types](https://docs.tide.org/Languages/JavaScript/tidecloak-js-reference).
 
-### 8.3. Policy adapter phía Tùng
+### 8.3. Tung's policy adapter
 
-Interface nội bộ phải triển khai/kiểm chứng, không khẳng định tên API Tide có sẵn:
+Internal interfaces to implement/verify; these names do not assert existing Tide APIs:
 
 ~~~text
 verifySubmissionOrigin(protectedPayload/proof, binding)
@@ -549,23 +549,23 @@ applyCouncilChange(verifiedProposal, expectedCouncilVersion)
 requestGovernedRoleChange(whitelistedChange, approvedCouncilProposalIfRelevant)
 ~~~
 
-Dịch vụ mật mã phải tự verify toàn context canonical, distinct approvers, membership/roster snapshot, N/T được bốc và khóa, independent/CoI, operation/payload/recipient/expiry/policy, không tin row count/status. Chặn dùng phiếu A cho B, đổi ciphertext/recipient/purpose sau ký và dùng grant ngoài scope/phiên cho phép.
+The cryptographic service itself must verify the full canonical context, distinct approvers, membership/roster snapshot, drawn and locked N/T, independent/CoI, operation/payload/recipient/expiry/policy. It must not trust row counts/status. Prevent votes for A being used for B, ciphertext/recipient/purpose changes after signing, and grants used outside their allowed scope/session.
 
-Assignment/directory có nguồn xác thực phù hợp. Backend tự đổi assignment rồi tự ký bằng secret của nó chưa chống chính backend. Adapter chưa có trả POLICY_UNAVAILABLE, không artifact giả.
+Assignment/directory require appropriate authenticated sources. A backend editing an assignment and signing it with its own secret does not defend against that backend. Missing adapters return POLICY_UNAVAILABLE, never fake artifacts.
 
-Nếu dùng Forseti, ghi contract hash/ID/version và các validation stage thực sự chạy. Hook khác nhau theo policy mode; không giả định mọi hook đều chạy cùng request. [Forseti](https://docs.tide.org/Core-Concepts/forseti-engine).
+If using Forseti, record contract hash/ID/version and validation stages actually executed. Hooks vary by policy mode; do not assume all hooks execute in the same request. [Forseti](https://docs.tide.org/Core-Concepts/forseti-engine).
 
-### 8.4. QEA khác quorum vụ việc
+### 8.4. QEA differs from case quorum
 
-QEA bảo vệ đổi IAM/policy; không tự biến row phiếu thành phê duyệt mật mã cho report hoặc đổi council. Governance admins và thành viên council là hai tập riêng. Mọi đổi roster/role hội đồng cần vote nghiệp vụ ở mục 10.3 trước; QEA nếu có là bước áp dụng kỹ thuật bổ sung, không thay vote và không được tự kích hoạt bootstrap/đổi roster.
+QEA protects IAM/policy changes; it does not automatically convert vote rows into cryptographic approval for reports or council changes. Governance admins and council members are separate sets. Every council roster/role change first requires section 10.3 business votes; QEA, where applicable, is an additional technical application step, not a substitute for voting or a way to trigger bootstrap/roster edits independently.
 
-Tài liệu QEA ghi max(1, floor(0.7 * N_admins)): 1/2 admin có thể cần một approval, 3 admin cần hai; realm master không chịu QEA. B phải test đường quản trị/cấu hình thực tế, không suy ra master đọc plaintext và không bỏ qua ngoại lệ. [QEA](https://docs.tide.org/Core-Concepts/iga-workflow).
+QEA documentation specifies max(1, floor(0.7 * N_admins)): one or two admins may require one approval; three require two. The master realm is outside QEA. B must test actual admin/configuration paths, account for this exception, and never infer that master can read plaintext. [QEA](https://docs.tide.org/Core-Concepts/iga-workflow).
 
-Demo governance dùng ba tài khoản admin thật, request thật pending sau một approval. Không ép admins thành jury chỉ để số phiếu giống nhau.
+A governance demo uses three real admin accounts and a real request still pending after one approval. Do not force admins to be jurors merely to match vote counts.
 
-## 9. Hash và bằng chứng tác giả
+## 9. Hashing and authorship evidence
 
-Encoding chung ở src/contracts/contentEncoding.ts: validate string, Unicode NFC, CRLF thành LF, giữ whitespace còn lại; fixed-order JSON. Lưu/hiển thị chính nội dung canonical. Không stringify object tùy ý/spread input.
+Shared encoding in src/contracts/contentEncoding.ts: validate strings, Unicode NFC, CRLF to LF, preserve other whitespace; fixed-order JSON. Store/display the canonical content itself. Never stringify arbitrary objects or spread input.
 
 ~~~typescript
 type IdeaContentV1 = {
@@ -575,7 +575,7 @@ type IdeaContentV1 = {
 const normalizeText = (v: string) => v.normalize("NFC").replace(/\r\n?/g, "\n");
 
 export function encodeIdeaV1(v: IdeaContentV1): Uint8Array {
-  // Input đã validate; thứ tự field cố định dùng ở cả client/server.
+  // Input already validated; fixed field order is shared by client/server.
   return new TextEncoder().encode(JSON.stringify({
     schema: "voicevault.idea.content.v1",
     organizationId: v.organizationId,
@@ -588,44 +588,44 @@ export function encodeIdeaV1(v: IdeaContentV1): Uint8Array {
 }
 ~~~
 
-SHA-256 trên bytes đó. Hai cặp title/description ("a||b","c") và ("a","b||c") phải khác hash; thuật toán nối delimiter cũ cho cùng bytes, không phải SHA-256 bị phá.
+Apply SHA-256 to these bytes. The title/description pairs ("a||b","c") and ("a","b||c") must have different hashes; the old delimiter concatenation produced identical bytes, which is not a SHA-256 break.
 
-Report encoding có schema/org/UUID/version/title/evidence và accused IDs deduplicate/sort. Assignment/ApprovalContext cũng chốt key/array order. Ciphertext hash chốt rõ hash bytes ciphertext hay UTF-8 serialization, test vector chung, không mỗi bên tự chọn.
+Report encoding includes schema/org/UUID/version/title/evidence and deduplicated/sorted accused IDs. Assignment/ApprovalContext also fix key/array order. Specify whether ciphertext hash covers raw ciphertext bytes or UTF-8 serialization, with shared test vectors; each side must not choose independently.
 
-Origin proof chứa binding, tác giả xác thực và consent. G4 xác định issuer/signer/trust root/verifier. Tên trong JSON/content hash/ciphertext không tự chứng minh tác giả. Không công khai proof/public key có thể nối về nhân viên trong đánh giá mù; receipt/proof định danh đặt trong lớp bảo vệ thích hợp, đánh giá cả metadata.
+Origin proof contains binding, authenticated author, and consent. G4 identifies issuer/signer/trust root/verifier. A name in JSON/content hash/ciphertext does not establish authorship. During blind review, do not publish proof/public keys linkable to employees; place identifying receipts/proofs in an appropriate protected layer and assess metadata too.
 
-Thử thay label/content/ciphertext/cả record, replay UUID/org khác. Phát hiện mismatch chưa khôi phục được dữ liệu đúng; cần receipt/bản gốc đã xác minh và backup. Timestamp server chỉ vận hành; bằng chứng ưu tiên trước DBA cần chứng thực/biên nhận độc lập, không hash và thời gian cùng một DB.
+Test replacing label/content/ciphertext/whole records and replaying under another UUID/org. Detecting a mismatch does not recover correct data; verified receipts/originals and backups are required. Server timestamps are operational only; priority evidence against a DBA requires independent attestation/receipts, beyond hashes and timestamps in the same DB.
 
-## 10. Xung đột lợi ích và chọn hội đồng
+## 10. Conflicts of interest and council selection
 
-### 10.1. Chốt danh sách hội đồng ngay khởi tạo
+### 10.1. Fix the council roster at initialization
 
-Phân biệt **council roster** (danh sách hội đồng gốc theo từng version) và **voting assignment** (N người được chọn cho một phản ánh/đề xuất). Không tạo hội đồng từ toàn bộ nhân viên mỗi khi có phản ánh, không tự thêm người đang đăng nhập và không lấy roster đích chưa duyệt làm nguồn người vote.
+Distinguish **council roster** (the base council membership for each version) from **voting assignment** (N members selected for a report/proposal). Do not construct a council from all employees for each report, automatically add the signed-in user, or draw voters from an unapproved target roster.
 
-Bootstrap một lần trước hồ sơ đầu tiên:
+Bootstrap once, before the first record:
 
-1. Hai người triển khai chốt danh sách thành viên cụ thể, xác minh stable subject ID, organization, trạng thái active, membershipRole và independent. Pool demo duy nhất: Eva, Frank, Grace, Henry, Iris; Grace independent.
-2. Khóa policy ban đầu: minVoters=3, maxVoters=5, tỷ lệ 2/3 và independent requirement. Khoảng N là mặc định thiết kế vì yêu cầu chưa chỉ định; thay min/max trong giới hạn 3..5 phải qua proposal được vote như thay roster. Tỷ lệ 2/3 và independent requirement là quy tắc cố định của protocol v1, không có tùy chọn sửa trực tiếp.
-3. Tạo CouncilSnapshot version=1 bất biến, rosterHash, policyHash, bootstrap receipt và dấu bootstrapCompleted được policy xác thực. Roster có ít nhất ba người, ít nhất một independent; prototype giới hạn tối đa 12 người để thuật toán mẫu hữu hạn.
-4. Có xác nhận tham gia của các thành viên ban đầu và lưu manifest không nhạy cảm. Bootstrap là quyết định quản trị ban đầu được công bố, không nhận là danh sách tự phát sinh từ mật mã.
-5. Sau bootstrap không còn endpoint add/remove/edit trực tiếp, seed không ghi đè roster và không bật lại chế độ bootstrap khi reset app/DB. Policy không chấp nhận version/hash cũ như roster hiện hành; khôi phục backup phải đối soát với checkpoint đáng tin cậy.
+1. Both implementers agree specific members and verify stable subject ID, organization, active status, membershipRole, and independent status. The sole demo pool is Eva, Frank, Grace, Henry, Iris; Grace is independent.
+2. Lock initial policy: minVoters=3, maxVoters=5, ratio 2/3, and independent requirement. The N range is a design default because requirements did not specify it; changing min/max within 3..5 requires a voted proposal, just like roster changes. The 2/3 ratio and independent requirement are fixed protocol v1 rules, with no direct editing option.
+3. Create immutable CouncilSnapshot version=1, rosterHash, policyHash, bootstrap receipt, and policy-authenticated bootstrapCompleted marker. Roster requires at least three members and one independent; the prototype caps it at 12 to keep the sampling algorithm finite.
+4. Obtain initial members' participation confirmation and store a nonsensitive manifest. Bootstrap is a disclosed initial governance decision, not a roster generated by cryptography.
+5. After bootstrap, no direct add/remove/edit endpoint remains; seed never overwrites the roster and app/DB resets never reenable bootstrap. Policy rejects old versions/hashes as the current roster; backup restoration must reconcile against a trusted checkpoint.
 
-Directory nhân sự không tự cấp tư cách council: nhân viên mới/đổi tên/đổi phòng ban không tự thành người vote. Subject sai hoặc inactive bị loại theo CoI/eligibility, nhưng đổi tư cách/role/independent của council vẫn cần proposal được vote.
+The personnel directory does not confer council membership: new employees, renames, or department changes do not automatically create voters. Invalid/inactive subjects are excluded under CoI/eligibility, but council membership/role/independent changes still require a voted proposal.
 
-### 10.2. Bốc ngẫu nhiên số lượng rồi bốc người
+### 10.2. Randomly draw the count, then the people
 
-Client chỉ gửi accusedPersonIds. Server resolve từ directory đáng tin/có version, reject unknown/cross-org và management graph cycle. CoI loại accused, chuỗi quản lý liên quan đã biết và quan hệ xung đột được xác minh. Không dùng department do client tự khai hoặc display name làm khóa.
+Client sends accusedPersonIds only. Server resolves a trusted/versioned directory, rejects unknown/cross-org IDs and management-graph cycles. CoI excludes accused people, known relevant management chains, and verified conflicts. Never use self-declared client departments or display names as keys.
 
-Với E là thành viên hợp lệ còn lại trong roster hiện hành:
+Let E be the eligible members remaining in the current roster:
 
-- Khoảng N hợp lệ: từ minVoters=3 tới min(maxVoters=5, |E|), và phải chọn được ít nhất một independent.
-- Bốc N đều trong các số nguyên hợp lệ, sau đó bốc đều một tập N người thỏa independent. Đây là phân phối đều theo kích thước rồi theo tập có cùng kích thước, không tuyên bố mọi tập ở mọi kích thước có xác suất bằng nhau.
-- T = ceil(2 × N / 3), tính trên N được chọn, không tính trên số đã bỏ phiếu hoặc đang online. N=3 → T=2; N=4 → T=3; N=5 → T=4.
-- Có thể chỉ còn một kích thước khả dụng, ví dụ E có ba người thì N=3; không cố bốc N lớn hơn pool hoặc hạ minVoters để tạo ngẫu nhiên giả.
-- Lưu N/T, voter IDs, exclusions, council/directory/policy version/hash và selection proof cùng request. Retry/idempotency không bốc lại, không thêm/bớt voter sau khi đã có phiếu.
-- Thiếu ba người hoặc không independent: AWAITING_ELIGIBLE_JURY; không lấy người ngoài roster, không giảm ngưỡng.
+- Valid N ranges from minVoters=3 to min(maxVoters=5, |E|), with at least one independent selectable.
+- Draw N uniformly among valid integers, then draw uniformly an N-member subset meeting the independent requirement. This is uniform by size and then among subsets of that size; it does not claim equal probability for every subset across all sizes.
+- T = ceil(2 × N / 3), based on selected N, not votes cast or online members. N=3 → T=2; N=4 → T=3; N=5 → T=4.
+- Only one size may be available: if E has three members, N=3. Never draw beyond the pool or lower minVoters to manufacture apparent randomness.
+- Store N/T, voter IDs, exclusions, council/directory/policy version/hash, and selection proof with the request. Retries/idempotency never redraw; do not add/remove voters after votes exist.
+- Fewer than three eligible members or no independent: AWAITING_ELIGIBLE_JURY; do not use people outside the roster or lower thresholds.
 
-Hàm Node minh họa sau khi CoI được tính; nguồn roster/selection vẫn phải được G3 xác minh:
+Illustrative Node function after CoI calculation; G3 must still verify roster/selection sources:
 
 ~~~typescript
 import { randomInt } from "node:crypto";
@@ -672,82 +672,82 @@ export function selectVotingAssignment(
 }
 ~~~
 
-drawInt chỉ được tiêm deterministic trong unit test; production dùng node:crypto.randomInt. CSPRNG tránh modulo bias nhưng không chứng minh backend không bốc lại; G3 phải kiểm chứng assignment và chống bỏ kết quả không thuận lợi. [Node randomInt](https://nodejs.org/api/crypto.html#cryptorandomintmin-max-callback).
+Inject deterministic drawInt only in unit tests; production uses node:crypto.randomInt. CSPRNG prevents modulo bias but does not prove the backend never redraws; G3 must verify assignment and prevent discarding unfavorable results. [Node randomInt](https://nodejs.org/api/crypto.html#cryptorandomintmin-max-callback).
 
-Demo tố Eva/Binh tính eligibility từ roster/directory thật, hiển thị N/T và voter list thực. Không hứa luôn Frank–Grace–Henry vì Iris cũng có thể được chọn; fixture cố định phải mang nhãn mô phỏng.
+A demo accusing Eva/Binh derives eligibility from the real roster/directory and displays actual N/T and voters. Never promise Frank–Grace–Henry every time, since Iris may also be selected; fixed fixtures must be labeled simulated.
 
-### 10.3. Thay đổi hội đồng phải vote như duyệt phản ánh
+### 10.3. Council changes require voting like report approval
 
-Mọi thêm, xóa, thay người, đổi chair/independent, bật/tắt membership hoặc đổi min/max đều tạo CouncilChangeRequest. Không có ngoại lệ “IT sửa nhanh”; IAM/DB/seed/console không được là đường tắt. Protocol v1 giữ tỷ lệ 2/3 cố định, không nhận proposal hạ tỷ lệ này.
+Every addition, removal, replacement, chair/independent change, membership activation/deactivation, or min/max change creates a CouncilChangeRequest. No “quick IT fix” exception exists; IAM/DB/seed/console must not be shortcuts. Protocol v1 fixes the 2/3 ratio and rejects proposals lowering it.
 
-Dùng **cùng VotingService, thuật toán chọn N/người, kiểm tra T/independent, ký context, expiry, idempotency, DENY và audit** như duyệt phản ánh; chỉ khác operation/payload và hành động cuối:
+Use the **same VotingService, N/voter selection algorithm, T/independent checks, signed context, expiry, idempotency, DENY, and audit** as report approval; only operation/payload and the final action differ:
 
 ~~~text
-Đề xuất roster/policy đích trên CouncilSnapshot v
-  -> lọc CoI từ roster đang có hiệu lực v
-  -> bốc N + N voters, khóa assignment và T
-  -> COLLECTING -> READY khi đủ T APPROVE hợp lệ có independent
+Propose target roster/policy against CouncilSnapshot v
+  -> filter CoI from currently effective roster v
+  -> draw N + N voters, lock assignment and T
+  -> COLLECTING -> READY after T valid APPROVE votes including an independent
   -> verify proof/policy -> APPLYING -> APPLIED
 COLLECTING/READY -> DENIED / EXPIRED / STALE
-Không đủ eligible -> AWAITING_ELIGIBLE_JURY
+Insufficient eligible members -> AWAITING_ELIGIBLE_JURY
 ~~~
 
-1. Proposal chứa baseCouncilVersion/hash, toàn roster/policy đích, diff, reason, expiry, nonce và payloadHash bất biến. Validate roster đích: subject duy nhất/cùng org/được xác minh, tối đa 12 người, đủ thành viên active cho minVoters và có independent active; policy đích 3 <= minVoters <= maxVoters <= 5. Context operation=CHANGE_COUNCIL, không trộn với REVEAL_REPORT_IDENTITY.
-2. Người vote lấy từ roster **cũ đang có hiệu lực**, loại thành viên bị thêm/xóa/đổi quyền và người có CoI với thay đổi. Người mới chưa được duyệt không có quyền vote cho chính việc bổ nhiệm.
-3. Không đủ eligible/independent thì giữ chờ, không giảm N/T hoặc thêm người ngoài roster. Muốn thay independent duy nhất có thể cần proposal bổ sung independent khác được duyệt trước rồi mới proposal loại người cũ.
-4. Mỗi voter đăng nhập riêng, ký đúng proposal hash/base version/assignment/N/T/purpose/expiry; cùng ngưỡng ceil(2N/3), distinct và independent như phản ánh. Một DENY hợp lệ kết thúc proposal theo quy tắc chung.
-5. Đủ phiếu chỉ là READY. Adapter xác minh bằng chứng, thực hiện thay đổi IAM/QEA nếu cần qua outbox rồi đối soát; chưa hoàn tất giữ roster cũ ở trạng thái hiệu lực, không cấp quyền sớm.
-6. Publish version v+1 bằng compare-and-swap expectedVersion=v, giữ lịch sử v và ghi audit/proof. IAM projection không là nguồn membership duy nhất; API/Fabric kiểm cả version được publish để role đã chuẩn bị chưa tạo quyền sớm.
-7. Nếu proposal khác đã publish trước, proposal này STALE, không tự rebase roster đích hoặc dùng phiếu cũ. Các pending voting request/reveal challenge trên roster cũ được đánh dấu STALE, ngăn grant/apply mới; cấp assignment mới cần quy trình có ghi nhận, không âm thầm bốc lại.
-8. Authorization đã cấp cần được policy kiểm version khi dùng; nếu Tide adapter không thu hồi/chặn được artifact cũ, ghi giới hạn và khóa luồng thay đổi chưa đạt G3/G5. Không tuyên bố thu hồi plaintext đã xem.
-9. BootstrapCompleted không được reset để tránh vote. Duplicate proposal cùng payload/base version không bốc lại; hủy/nộp lại không được dùng để “săn” nhóm vote thuận lợi mà không có quy trình đối soát.
+1. Proposal contains immutable baseCouncilVersion/hash, complete target roster/policy, diff, reason, expiry, nonce, and payloadHash. Validate target roster: unique/verified/same-org subjects, at most 12 members, sufficient active members for minVoters, and an active independent; target policy 3 <= minVoters <= maxVoters <= 5. Context operation=CHANGE_COUNCIL, never mixed with REVEAL_REPORT_IDENTITY.
+2. Draw voters from the **old, currently effective roster**, excluding members being added/removed/having permissions changed and anyone with CoI concerning the change. Unapproved new members cannot vote on their own appointment.
+3. Insufficient eligible/independent members means waiting, never lowering N/T or adding people outside the roster. Replacing the sole independent may first require an approved proposal adding another independent, followed by a proposal removing the old member.
+4. Every voter signs in separately and signs the exact proposal hash/base version/assignment/N/T/purpose/expiry; use the same ceil(2N/3), distinctness, and independent requirements as reports. One valid DENY terminates the proposal under shared rules.
+5. Sufficient votes create READY only. Adapter verifies evidence, performs required IAM/QEA changes through outbox, then reconciles; the old roster remains effective until completion, with no early permissions.
+6. Publish v+1 through compare-and-swap expectedVersion=v, retain version-v history, and record audit/proof. IAM projection is not the only membership source; API/Fabric also check the published version so prepared roles cannot grant permission early.
+7. If another proposal publishes first, this proposal becomes STALE; never automatically rebase its target roster or reuse votes. Pending voting requests/reveal challenges on the old roster become STALE, preventing new grant/apply operations; a new assignment requires a recorded process, never silent redrawing.
+8. Policy must check the version of existing authorization when used. If the Tide adapter cannot revoke/block old artifacts, disclose the limitation and lock change flows failing G3/G5. Never claim revocation of plaintext already seen.
+9. BootstrapCompleted cannot be reset to evade voting. Duplicate proposals on the same payload/base version never redraw; cancellation/resubmission must not “hunt” for favorable voters without a reconciliation process.
 
-Đây là governance nghiệp vụ của hội đồng. QEA quản trị realm là lớp kỹ thuật riêng và không tự thay thế các phiếu này.
+This is council business governance. Realm-administration QEA is a separate technical layer and does not replace these votes.
 
-## 11. Database, transaction và migration
+## 11. Database, transactions, and migrations
 
-### 11.1. Schema logic
+### 11.1. Logical schema
 
-B chuyển bảng này thành Prisma schema đúng bản đã pin; đây không phải schema hoàn chỉnh copy chạy ngay.
+B converts this table into a Prisma schema for the pinned version; this is not a complete copy-and-run schema.
 
-| Entity | Trường/ngữ nghĩa | Ràng buộc |
+| Entity | Fields/semantics | Constraints |
 | --- | --- | --- |
-| Idea | Org/UUID, canonical content/version/hash, envelope, consent, policy, state/version | Bất biến sau nộp, không submitter FK |
-| IdeaEndorsement | ideaId, endorserSubject, artifact | Actor từ token, không đổi tác giả |
-| IdeaDecision | decision/director/context/proof | Verify artifact; row không nguồn quyền duy nhất |
-| PublishedCredit | ideaId, tên công khai, artifact | Chỉ consent + G4; không bảng tương tự reporter |
-| Report | Org/UUID, evidence giả/content hash, envelope, state/version | Không createdBy/reporterId/revealedReporter plaintext |
-| ReportAccused | reportId/personId | Unique(reportId, personId), cùng org |
-| CouncilSnapshot | org/version, roster/policy hash, bootstrap receipt, publishedAt | Unique(org, version), bất biến; current version có checkpoint đáng tin |
-| CouncilMember | snapshotId/subject/role/independent/active | Unique(snapshotId, subject), không sửa trực tiếp sau publish |
-| CouncilChangeRequest | UUID/org/base version/hash, roster/policy đích/diff/hash/reason, votingRequestId, applyState/version | Payload bất biến; duplicate active proposal cùng payload/base không bốc lại |
-| VotingRequest | operation/resource/binding, council version/hash, payloadHash, nonce/expiry/state/version | Dùng chung phản ánh/đổi council; phiếu không tái dùng qua operation |
-| VotingAssignment | votingRequest/report, version, roster/directory/policy version/hash, voterCount/quorumRequired, hash/artifact | Một selection cho một round/resource đã chốt, N/T bất biến |
-| VotingAssignmentMember | assignment/member/independent snapshot | Unique(assignmentId, memberSubject), đúng voterCount đã bốc |
-| VotingExclusion | person/reason/directory version | Lý do đã xác minh |
-| UnmaskRequest | report/assignment/votingRequestId/context/ciphertext hash/recipient/purpose/expiry/state/version | Context bất biến, dùng VotingRequest chung, không tự đếm phiếu riêng |
-| VoteApproval | votingRequestId/voterSubject/decision/reason/proof/hash/verifiedAt | Unique(votingRequestId, voterSubject), snapshot/N/T/context verify |
-| RevealAuthorization | request/opaque artifact/context/expiry/state | Không plaintext, DB không tự cấp quyền |
-| IdempotencyRecord | org/scope/key/payload hash/response reference | Unique(org, scope, key), không JWT/submitter |
-| OutboxOperation | request/type/context/state/attempts | Retry idempotent và đối soát external call |
-| AuditEvent | action/resource/request/source/result/time, actor có chọn lọc | Redact, chưa mặc định tamper-evident trước DBA |
+| Idea | Org/UUID, canonical content/version/hash, envelope, consent, policy, state/version | Immutable after submission, no submitter FK |
+| IdeaEndorsement | ideaId, endorserSubject, artifact | Actor from token; no author changes |
+| IdeaDecision | decision/director/context/proof | Verify artifact; row is not sole authority source |
+| PublishedCredit | ideaId, public name, artifact | Consent + G4 only; no equivalent reporter table |
+| Report | Org/UUID, fake evidence/content hash, envelope, state/version | No createdBy/reporterId/revealedReporter plaintext |
+| ReportAccused | reportId/personId | Unique(reportId, personId), same org |
+| CouncilSnapshot | org/version, roster/policy hash, bootstrap receipt, publishedAt | Unique(org, version), immutable; trusted checkpoint for current version |
+| CouncilMember | snapshotId/subject/role/independent/active | Unique(snapshotId, subject), no direct edits after publication |
+| CouncilChangeRequest | UUID/org/base version/hash, target roster/policy/diff/hash/reason, votingRequestId, applyState/version | Immutable payload; duplicate active proposal with same payload/base never redraws |
+| VotingRequest | operation/resource/binding, council version/hash, payloadHash, nonce/expiry/state/version | Shared by reports/council changes; votes never reused across operations |
+| VotingAssignment | votingRequest/report, version, roster/directory/policy version/hash, voterCount/quorumRequired, hash/artifact | One selection per fixed round/resource, immutable N/T |
+| VotingAssignmentMember | assignment/member/independent snapshot | Unique(assignmentId, memberSubject), matching drawn voterCount |
+| VotingExclusion | person/reason/directory version | Verified reasons |
+| UnmaskRequest | report/assignment/votingRequestId/context/ciphertext hash/recipient/purpose/expiry/state/version | Immutable context, shared VotingRequest, no separate vote counting |
+| VoteApproval | votingRequestId/voterSubject/decision/reason/proof/hash/verifiedAt | Unique(votingRequestId, voterSubject), verified snapshot/N/T/context |
+| RevealAuthorization | request/opaque artifact/context/expiry/state | No plaintext; DB cannot issue authority itself |
+| IdempotencyRecord | org/scope/key/payload hash/response reference | Unique(org, scope, key), no JWT/submitter |
+| OutboxOperation | request/type/context/state/attempts | Idempotent retries and external-call reconciliation |
+| AuditEvent | action/resource/request/source/result/time, selectively recorded actor | Redacted; not assumed tamper-evident against a DBA |
 
-Reporter plaintext chỉ client memory, xóa khi đóng/logout; không localStorage/analytics/SSR/cache. API chọn field, không trả nguyên object có envelope/proof cho list.
+Reporter plaintext stays in client memory and is cleared on close/logout; no localStorage/analytics/SSR/cache. API selects fields and never returns complete envelope/proof-bearing objects in lists.
 
-### 11.2. Transaction
+### 11.2. Transactions
 
-- Tạo report + accused + roster snapshot reference + selection N/T/assignment hoặc chờ + idempotency trong một transaction. Council proposal + VotingRequest + selection cũng nguyên tử.
-- Verify proof trước persist; tại commit kiểm tra lại state/version/expiry/membership snapshot, insert unique và tính tiến độ. Row count không thay proof.
-- Approval không sửa tại chỗ; DENY kết thúc request; xét lại cần request mới.
-- Optimistic version chống hồi sinh EXPIRED/DENIED; external grant qua outbox, không giữ DB transaction khi gọi mạng.
-- Timeout đối soát request ID trước retry, không cấp grant/apply roster trùng. Publish council bằng expectedVersion; hai proposal đồng thời chỉ một được publish, proposal kia STALE. Không transaction DB dài trong lúc QEA/network chờ.
-- SQLite prototype một app instance, không chia file đang ghi qua mạng.
+- Create report + accused people + roster snapshot reference + N/T/assignment selection or waiting state + idempotency in one transaction. Council proposal + VotingRequest + selection is also atomic.
+- Verify proof before persistence; at commit recheck state/version/expiry/membership snapshot, perform unique insert, and compute progress. Row counts never replace proof.
+- Approvals are not edited in place; DENY terminates a request; reconsideration needs a new request.
+- Optimistic versions prevent reviving EXPIRED/DENIED; external grants use outbox, never hold DB transactions across network calls.
+- On timeout, reconcile request IDs before retries to avoid duplicate grants/roster apply. Publish council using expectedVersion; only one concurrent proposal can publish and the other becomes STALE. No long DB transaction while waiting on QEA/network.
+- SQLite prototype runs one app instance; never share an actively written file over the network.
 
-### 11.3. Migration single writer
+### 11.3. Single migration writer
 
-Chỉ B tạo schema/migration; A yêu cầu field qua contract change, không db push và không commit DB.
+Only B creates schema/migrations; A requests fields through contract changes, never db push or DB commits.
 
-Máy B với Prisma 6.19.0:
+B's machine with Prisma 6.19.0:
 
 ~~~powershell
 npm run db:migrate:dev -- --name add_unmask_requests
@@ -756,197 +756,197 @@ npm run db:generate
 git diff -- prisma/schema.prisma prisma/migrations
 ~~~
 
-Checkout integration trên máy Tùng sau merge; máy bạn không chạy hai lệnh này:
+Integration checkout on Tung's machine after merge; your machine does not run these two commands:
 
 ~~~powershell
 npm run db:migrate:deploy
 npm run db:generate
 ~~~
 
-Không sửa migration đã áp dụng; hợp nhất bằng migration tiến tới. Drift/đòi reset: kiểm tra đúng DB/version/checksum, không tự reset cho xanh. CLI major mới có thể khác hướng dẫn, không lấy latest áp vào Prisma 6.
+Never edit applied migrations; reconcile through forward migrations. For drift/reset prompts, verify DB/version/checksum instead of resetting merely to pass. New CLI majors may differ; do not apply latest-version guidance blindly to Prisma 6.
 
-## 12. Code song song và Git merge chi tiết
+## 12. Parallel development and detailed Git merges
 
-Chi tiết lệnh và checklist riêng: [bạn](./architecture_toi.md#7-git-và-bàn-giao-cho-tùng), [Tùng](./architecture_tung.md#8-git-và-merge).
+Individual commands/checklists: [you](./architecture_toi.md#7-git-and-handoff-to-tung), [Tung](./architecture_tung.md#8-git-and-merge).
 
-### 12.1. Milestone phù hợp môi trường
+### 12.1. Environment-appropriate milestones
 
-| Mốc | Bạn, không toolchain | Tùng, có toolchain | Điều kiện |
+| Milestone | You, without toolchain | Tung, with toolchain | Condition |
 | --- | --- | --- | --- |
-| M0 | Chốt UI/runtime contract, mở file mock | Bootstrap/fixtures, shell, contract và platform baseline | file:// mở được, cùng SHA |
-| M1 | Layout/form/list bằng mock | Next static hosting/API skeleton/LIVE bridge | Không chuyển UI React khi merge |
-| M2 | Review idea/vote/council views và state | SDK/crypto/proof/API/DB thật, G1–G4 | Runtime interface khớp, giữ bảo mật chung |
-| M3 | Responsive, lỗi/loading/empty, manual cases N/T | Council/random N/shared voting/QEA, G3/G5 | READY không APPLIED, không grant sớm |
-| M4 | Handoff UI và review LIVE nếu có URL/screen share | Merge, browser file/local/LIVE, migration/fresh checkout | Một UI dùng hai runtime, mock không che lỗi |
-| M5 | Demo/storytelling/UX review | Test/gates/SHA/runbook và README thực tế | Không nhận mock là bằng chứng live |
+| M0 | Agree UI/runtime contract, open mock file | Bootstrap/fixtures, shell, contract, platform baseline | Working file://, same SHA |
+| M1 | Mock layout/forms/lists | Next static hosting/API skeleton/LIVE bridge | No React UI conversion at merge |
+| M2 | Review idea/vote/council views and states | Real SDK/crypto/proof/API/DB, G1–G4 | Matching runtime interface, shared security preserved |
+| M3 | Responsive/error/loading/empty, manual N/T cases | Council/random N/shared voting/QEA, G3/G5 | READY differs from APPLIED; no early grant |
+| M4 | UI handoff and LIVE review via URL/screen share if available | Merge, browser file/local/LIVE, migration/fresh checkout | One UI with two runtimes; mock never hides errors |
+| M5 | Demo/storytelling/UX review | Tests/gates/SHA/runbook and accurate README | Mock is never claimed as live evidence |
 
-Tùng nhận phần toolchain nhiều hơn; bạn làm đủ màn hình, state, mock, manual QA và nội dung demo để Tùng tập trung platform/policy. Không chờ hệ thống thật hoàn chỉnh mới làm UI.
+Tung owns more toolchain work; you cover all screens, states, mock, manual QA, and demo content so he can focus on platform/policy. UI work does not wait for the complete real system.
 
-### 12.2. Branch và ownership
+### 12.2. Branches and ownership
 
-Base branch hiện là master, remote origin. Tùng tạo integration/voicevault và baseline duy nhất từ working tree sạch. Bạn tạo work/ui-static, Tùng tạo work/server-policy từ cùng SHA.
+The base branch is currently master, remote origin. Tung creates integration/voicevault and one baseline from a clean working tree. You create work/ui-static and Tung creates work/server-policy from the same SHA.
 
-Bạn chỉ stage public/ui và handoff. Tùng giữ public/integration, dependency/lockfile/contracts/migration/build/tests. Nếu bạn không dùng Git được, ZIP public/ui giữ relative path + baseline SHA; Tùng nhập branch import riêng và review diff, không chép đè repo.
+Stage only public/ui and your handoff. Tung owns public/integration, dependencies/lockfiles/contracts/migrations/build/tests. If Git is unavailable, send a public/ui ZIP preserving relative paths + baseline SHA; Tung imports into a separate branch and reviews the diff, never overwriting the repository.
 
-Sau baseline, bạn không chạy npm ci/db generate/migration dù repo chứa package.json. Tùng chạy mọi dependency/build/test trên checkout mình.
+After baseline, do not run npm ci/db generate/migrations even if the repository contains package.json. Tung runs all dependency/build/test work in his checkout.
 
-### 12.3. Merge từng lát cắt trên máy Tùng
+### 12.3. Merge small slices on Tung's machine
 
-1. Hai bên commit/push branch riêng, handoff file/contract version/SHA/prerequisite. Bạn báo manual browser result; Tùng báo automated/LIVE riêng.
-2. Tùng fetch, switch integration/voicevault, pull --ff-only và kiểm working tree sạch.
-3. Merge --no-ff --no-commit branch cần nhập; contract/runtime trước consumer nếu có breaking change.
-4. Review conflicts đúng owner; không Accept All cho contract/lockfile/migration và không sửa UI âm thầm.
-5. Tùng chạy npm ci, build fixtures/bridge, validate/migrate/generate, check, test:ui:file và integration trên cây đã merge.
-6. Dựng app/realm/test DB rồi chạy test:ui:live, live security và E2E phù hợp mốc.
-7. Đạt mới commit merge/push integration, gửi SHA/kết quả. Already up to date thì đối chiếu handoff, không commit rỗng.
-8. Bạn fetch/merge integration vào work/ui-static rồi mở index.html lại; không có bước npm/DB.
+1. Both commit/push individual branches and hand over files/contract version/SHA/prerequisites. You report manual browser results; Tung reports automated/LIVE separately.
+2. Tung fetches, switches to integration/voicevault, pulls --ff-only, and verifies a clean working tree.
+3. Merge the incoming branch with --no-ff --no-commit; merge contract/runtime before consumers for breaking changes.
+4. Review conflicts with the correct owner; never Accept All for contracts/lockfiles/migrations or silently change UI.
+5. Tung runs npm ci, fixtures/bridge build, validate/migrate/generate, check, test:ui:file, and integration on the merged tree.
+6. Set up app/realm/test DB, then run test:ui:live, live security, and milestone-appropriate E2E.
+7. Commit merge/push integration only after passing, then send SHA/results. For Already up to date, verify handoff instead of creating an empty commit.
+8. You fetch/merge integration into work/ui-static and reopen index.html; no npm/DB step.
 
-### 12.4. Conflict và rollback
+### 12.4. Conflicts and rollback
 
-- UI public/ui: bạn xử lý; runtime/API/server: Tùng xử lý; contract đổi thì hai người chốt ngữ nghĩa trước.
-- Dependency/lockfile: Tùng reconcile có chủ đích, npm install khi cần tạo lock rồi kiểm npm ci bằng npm version đã pin.
-- Prisma: Tùng single writer, không sửa applied migration hoặc reset DB cho xanh; tạo migration tiến tới và đối chiếu drift/checksum.
-- git merge --abort chỉ bỏ merge chưa commit, không hoàn tác DB/realm. Bảo toàn các sửa chữa duy nhất trước khi abort.
-- Merge đã push hỏng thì revert merge commit đã xác minh trên lịch sử chung, không reset/force-push; DB/policy/grant rollback riêng.
-- M5 đạt mới PR integration -> master, người kia review UX/contract/gates; hai branch riêng tự chạy chưa đủ bằng chứng hệ thống chung.
+- You resolve public/ui conflicts; Tung resolves runtime/API/server. Agree contract semantics together before changes.
+- Tung deliberately reconciles dependencies/lockfiles, using npm install when lock generation is needed, then verifies npm ci with the pinned npm version.
+- Tung is Prisma's single writer; never edit applied migrations or reset DB merely to pass. Create forward migrations and check drift/checksums.
+- git merge --abort discards only an uncommitted merge, not DB/realm changes. Preserve unique repairs before aborting.
+- For a broken pushed merge, revert the verified merge commit on shared history instead of reset/force-push; roll back DB/policy/grants separately.
+- Open PR integration -> master only after M5 passes; the teammate reviews UX/contracts/gates. Two separately working branches are insufficient evidence of the combined system.
 
-Các lệnh copy/paste trên máy Tùng ở architecture_tung.md; máy bạn chỉ có Git/browser như architecture_toi.md.
+Copy/paste commands for Tung's machine are in architecture_tung.md; your machine uses only Git/browser as in architecture_toi.md.
 
-## 13. Chạy hệ thống sau merge
+## 13. Running the system after merge
 
-Tùng chạy toàn bộ phần này. Máy bạn chỉ mở HTML mock hoặc URL test có sẵn; không cần dựng instance thứ hai.
+Tung runs this entire section. Your machine only opens mock HTML or an existing test URL; no second instance is needed.
 
-1. Đối chiếu integration SHA/contract và toolchain/image/policy manifest trên máy Tùng.
-2. Tùng dựng realm/client/callback/roster, .env và DB riêng, không copy token để đổi persona.
-3. npm ci, build:fixtures, build:bridge, db validate/migrate/generate/seed và check. Fixture/build diff ngoài dự kiến phải chốt lại với bạn.
-4. Chạy Next và mở /ui/index.html qua HTTP(S), không file:// để chứng minh LIVE. Root host có thể redirect, không route trùng static.
-5. Kiểm relative assets, bootstrap mode, contract version, SDK assets/callback/CSP và API cùng origin.
-6. test:ui:file mở file:// không server/SDK, test:ui:live qua Next dùng API thật; unit/integration/live/E2E chạy trên DB/realm test theo prerequisite.
-7. Tạo hồ sơ mới, refresh/restart đọc lại, direct bypass và inspect DB/log/storage; không dùng seed giả proof để thay test.
-8. Tùng gửi SHA, kết quả và video/screen share hoặc URL test đã có để bạn review UX. localhost trên máy Tùng không tự truy cập từ máy bạn.
+1. Compare integration SHA/contract and toolchain/image/policy manifest on Tung's machine.
+2. Tung sets up realm/client/callback/roster, .env, and a separate DB; never copy tokens to switch personas.
+3. Run npm ci, build:fixtures, build:bridge, DB validate/migrate/generate/seed, and check. Agree unexpected fixture/build diffs with your teammate.
+4. Start Next and open /ui/index.html over HTTP(S); file:// cannot demonstrate LIVE. Root host may redirect; do not duplicate the static route.
+5. Check relative assets, bootstrap mode, contract version, SDK assets/callback/CSP, and same-origin API.
+6. test:ui:file opens file:// without server/SDK; test:ui:live uses real APIs through Next. Unit/integration/live/E2E run against test DB/realm according to prerequisites.
+7. Create new records, refresh/restart and read again, attempt direct bypass, and inspect DB/log/storage; fake seeded proofs never replace testing.
+8. Tung sends SHA, results, and video/screen share or an existing test URL for UX review. His localhost is not automatically accessible from your machine.
 
-Seed không overwrite roster đã bootstrap hoặc tạo approval/grant giả. N/T/roster và policy vẫn theo mục 10. Runtime/build lỗi phải báo unavailable, không chuyển LIVE sang mock.
+Seed never overwrites a bootstrapped roster or creates fake approvals/grants. N/T/roster and policy still follow section 10. Runtime/build errors report unavailable and never switch LIVE to mock.
 
-### 13.1. Triage tích hợp
+### 13.1. Integration triage
 
-| Lỗi | Kiểm tra trước | Owner |
+| Failure | Check first | Owner |
 | --- | --- | --- |
-| file:// trắng hoặc local script lỗi | Relative paths, classic defer, không fetch JSON/ES module | Bạn + bootstrap của Tùng |
-| Không có fixture/bootstrap | Handoff baseline thiếu file track | Tùng |
-| UI lệch field/state | Runtime/fixture contract version, ApiResult | Cùng chốt, owner sửa |
-| LIVE bundle thiếu/404 | Build bridge trước Next build, static path | Tùng |
-| Token/SSO/login loop | Issuer/client/algorithm/callback/origin/port | Tùng |
-| An encrypt được, Chi không mở | G1/sharing/key/recipient, không role rộng lách | Tùng |
-| Đủ T vẫn khóa | Proof/context/N/T/independent/roster version/expiry/outbox | Tùng |
-| Council đổi trước vote/apply | Dừng demo, rà IAM/DB/seed/bootstrap/version | Tùng |
-| DB drift/lock | DB đúng checkout/process/migration/checksum | Tùng |
-| UI báo Fabric deny không request thật | Mock/provenance và runtime adapter | Bạn + Tùng |
+| Blank file:// or local-script failure | Relative paths, classic defer, no JSON fetch/ES modules | You + Tung's bootstrap |
+| Missing fixture/bootstrap | Baseline handoff omitted tracked files | Tung |
+| UI field/state mismatch | Runtime/fixture contract version, ApiResult | Agree together; owner fixes |
+| LIVE bundle missing/404 | Bridge build before Next build, static path | Tung |
+| Token/SSO/login loop | Issuer/client/algorithm/callback/origin/port | Tung |
+| An can encrypt but Chi cannot reveal | G1/sharing/key/recipient; no broad-role workaround | Tung |
+| Still locked after T | Proof/context/N/T/independent/roster version/expiry/outbox | Tung |
+| Council changes before vote/apply | Stop demo; inspect IAM/DB/seed/bootstrap/version | Tung |
+| DB drift/lock | Correct checkout/process/DB/migration/checksum | Tung |
+| UI claims Fabric denial without a real request | Mock/provenance and runtime adapter | You + Tung |
 
-## 14. Quyền riêng tư và audit
+## 14. Privacy and audit
 
-Không log Authorization/cookie/body, payload trước/sau crypto, email/employee ID hoặc proof định danh người nộp. Kiểm SDK errors/proxy/tracing/error tracker/browser console. Rate limit user/IP tạo liên kết danh tính: công bố retention/phạm vi; không thêm submittedBy để debug rồi vẫn hứa ẩn danh.
+Never log Authorization/cookies/bodies, pre/post-crypto payloads, email/employee IDs, or proofs identifying submitters. Inspect SDK errors/proxy/tracing/error tracker/browser console. User/IP rate limiting creates identity links: disclose retention/scope. Never add submittedBy for debugging while still promising anonymity.
 
-Nội dung/văn phong/thời điểm/metadata tệp có thể lộ người viết. MVP không nhận attachment thật; upload cần xử lý metadata/ACL riêng. Không lưu sub trong DB không chống backend chủ động ghi lại JWT/request; thiết kế tư cách ẩn danh riêng ngoài MVP.
+Content/style/timing/file metadata may reveal authors. MVP accepts no real attachments; uploads require separate metadata/ACL handling. Omitting sub in DB does not defend against a backend actively recording JWTs/requests; anonymous-credential design is outside MVP.
 
-| Kết quả | Nhãn đúng |
+| Result | Correct label |
 | --- | --- |
-| API chặn sửa | APP / FORBIDDEN |
-| Browser phát hiện mismatch | CLIENT / INTEGRITY_MISMATCH, telemetry chưa xác minh nếu chỉ client báo |
-| Policy từ chối thật | FABRIC / POLICY_DENIED + request ID đối soát |
-| QEA chưa áp dụng | QEA / PENDING |
-| Mock | SIMULATED, không bằng chứng live |
+| API blocks edit | APP / FORBIDDEN |
+| Browser detects mismatch | CLIENT / INTEGRITY_MISMATCH; unverified telemetry if client-reported only |
+| Real policy denial | FABRIC / POLICY_DENIED + reconciled request ID |
+| QEA not yet applied | QEA / PENDING |
+| Mock | SIMULATED, never live evidence |
 
-Browser không tự ghi “Fabric đã chặn” thành chứng cứ server tin. Endpoint chỉ ghi blocked chưa chứng minh thao tác thật.
+A browser cannot write “Fabric blocked it” and make it trusted server evidence. An endpoint merely recording blocked does not demonstrate a real operation.
 
-Hash chain cùng DB không chống viết lại cả chain. Muốn tamper-evident trước DBA cần checkpoint/chữ ký đối chiếu độc lập và test; HMAC backend giữ không chống chính backend. Phát hiện giả mạo chưa chứng minh phục hồi được.
+A hash chain in the same DB does not prevent rewriting the entire chain. Tamper evidence against a DBA requires independently checked checkpoints/signatures and tests; a backend-held HMAC does not defend against that backend. Detecting tampering does not establish recoverability.
 
-README/UI bỏ “an toàn tuyệt đối”, “mathematically safe”, “khóa vĩnh viễn”, “khôi phục tác giả” nếu chưa có bằng chứng phù hợp; phân biệt confidentiality/integrity/availability/recovery.
+Remove “absolutely secure”, “mathematically safe”, “locked forever”, and “recover the author” from README/UI unless supported by appropriate evidence; distinguish confidentiality/integrity/availability/recovery.
 
-## 15. Prompt và mẫu bàn giao
+## 15. Prompts and handoff templates
 
-Prompt đầy đủ đã tách để không giao nhầm môi trường:
+Full prompts are separated to avoid assigning the wrong environment:
 
-- [Prompt máy bạn](./architecture_toi.md#9-prompt-cho-coding-agent-trên-máy-tôi): chỉ HTML/CSS/JS classic, mock UI, không yêu cầu Node/Next/Docker.
-- [Prompt máy Tùng](./architecture_tung.md#10-prompt-cho-coding-agent-trên-máy-tùng): platform, browser LIVE runtime, SDK/policy, build/test/merge, giữ nguyên static UI.
+- [Prompt for your machine](./architecture_toi.md#9-prompt-for-the-coding-agent-on-my-machine): classic HTML/CSS/JS and mock UI only; no Node/Next/Docker requirement.
+- [Prompt for Tung's machine](./architecture_tung.md#10-prompt-for-the-coding-agent-on-tungs-machine): platform, browser LIVE runtime, SDK/policy, build/test/merge; preserve static UI.
 
-Handoff chung:
+Shared handoff:
 
 ~~~text
-Milestone / baseline SHA / commit SHA hoặc ZIP:
+Milestone / baseline SHA / commit SHA or ZIP:
 Runtime contract version:
-File/endpoint/method thay đổi và owner:
-Fixture/bootstrap/dependency/migration thay đổi:
-Máy bạn: browser/manual MOCK result, ảnh và steps:
-Máy Tùng: lệnh thực sự đã chạy + result, G1–G5 PASS/FAIL/NOT RUN:
-Prerequisite / URL test hoặc screen share:
-Giới hạn/lỗi còn lại / file cần bàn giao:
+Changed files/endpoints/methods and owners:
+Fixture/bootstrap/dependency/migration changes:
+Your machine: browser/manual MOCK result, screenshots, steps:
+Tung's machine: commands actually run + results, G1–G5 PASS/FAIL/NOT RUN:
+Prerequisites / test URL or screen share:
+Remaining limitations/failures / files to hand over:
 ~~~
 
-Không nhận manual mock là live proof. Người nhận phải biết đúng SHA, runtime mode và config an toàn để tái hiện, không cần đoán console.
+Manual mock results are not live proof. Recipients need the exact SHA, runtime mode, and safe configuration to reproduce results without guessing console settings.
 
-## 16. Kiểm thử, demo và điều kiện hoàn thành
+## 16. Tests, demo, and completion criteria
 
-| Case | Kết quả bắt buộc | Bằng chứng |
+| Case | Required result | Evidence |
 | --- | --- | --- |
-| Token giả/hết hạn/sai issuer/client | 401, không record mới | API |
-| Role đúng/org khác | Không đọc/ghi cross-org | API |
-| SDK round trip/cross-user | Đúng kiểu, recipient khác mở đúng cơ chế | G1 live |
-| Director mở UNDER_REVIEW/REJECTED trực tiếp | Dịch vụ mật mã từ chối, không chỉ UI | G2 live |
-| Sửa label/tên tự khai | Không verified credit | G4 |
-| Tráo content/ciphertext/UUID/org | Mismatch/policy deny | G2/G4 |
-| Delimiter/Unicode/newline/order | Canonical client/server khớp, hai cặp cũ khác bytes | Contract vectors |
-| Multi-accused/management conflict | Loại đúng directory version | Unit/API |
-| 0/1/2 eligible/không independent | Chờ, không giảm minVoters hoặc N/T đã chốt | Unit/API |
-| Bốc N với eligible 3/4/5 | N trong khoảng cấu hình, T lần lượt 2/3/4 khi N=3/4/5 | Unit với drawInt test |
-| Roster bootstrap/seed chạy lại | Không overwrite/tái bootstrap, không tự thêm nhân viên | API/policy G5 |
-| Council thêm/xóa/đổi role | Chỉ proposal + vote; roster hiện hành chưa đổi khi pending/READY | API + G3/G5 |
-| Thành viên mới vote bổ nhiệm mình | Từ chối, chỉ roster cũ đủ điều kiện được vote | G3 live |
-| Hai council proposal cùng base version | Một APPLIED, còn lại STALE, phiếu không rebase | Transaction/policy |
-| Đổi roster/direct IAM/DB/console không proof | Không publish version/quyền hợp lệ | Adversarial G5 |
-| Retry create/proposal | Một resource/assignment, giữ N/T/người; không bốc lại bằng key/UUID mới | Transaction/policy |
-| Juror approve hai lần | Chỉ một người được tính | Unique + proof |
-| Đủ T approval nhưng không independent | Không grant/apply council | G3 |
-| Ngoài jury/CoI | Không approve/mở kể cả direct call | API + G3 |
-| T APPROVE hợp lệ | Đúng operation/context: recipient mở hoặc proposal được apply, không dùng chéo | G3 live |
-| Phiếu A dùng B/recipient khác | Từ chối | G3 live |
-| Expiry/đổi policy/assignment | Proof/grant cũ không áp dụng | G3 live |
-| Sửa row status/vote/assignment | Không tạo authorization mật mã hợp lệ | Adversarial G2/G3 |
-| Concurrent approval/adapter timeout | Không grant trùng/hồi sinh terminal | Integration |
-| IT tự cấp role | QEA request thật chưa áp dụng dưới ngưỡng | G5 live |
-| Logout/reload/DB/log/storage | Không reporter plaintext/token ngoài phạm vi | Privacy |
-| Fresh checkout/DB trống | Install/migrate/generate/seed/build theo runbook | Reproducibility |
-| Local không toolchain | Mở file:// index.html, fixture/classic assets chạy, không API/SDK | test:ui:file + manual |
-| Sau merge | Cùng static UI qua Next, runtime LIVE/API thật cùng commit, không fallback | test:ui:live + E2E |
+| Forged/expired/wrong issuer/client token | 401, no new record | API |
+| Correct role/different org | No cross-org reads/writes | API |
+| SDK round trip/cross-user | Correct types; different recipient reveals through correct mechanism | G1 live |
+| Director directly opens UNDER_REVIEW/REJECTED | Cryptographic service denies, beyond UI blocking | G2 live |
+| Changed label/self-declared name | No verified credit | G4 |
+| Swapped content/ciphertext/UUID/org | Mismatch/policy denial | G2/G4 |
+| Delimiter/Unicode/newline/order | Matching canonical client/server; old ambiguous pairs produce different bytes | Contract vectors |
+| Multiple accused/management conflict | Correct exclusions for directory version | Unit/API |
+| 0/1/2 eligible/no independent | Wait; never lower minVoters or locked N/T | Unit/API |
+| Draw N with 3/4/5 eligible | N within configured range; T=2/3/4 for N=3/4/5 | Unit with test drawInt |
+| Repeat roster bootstrap/seed | No overwrite/rebootstrap/automatic employee addition | API/policy G5 |
+| Council additions/removals/role changes | Proposal + vote only; current roster unchanged while pending/READY | API + G3/G5 |
+| New member votes on own appointment | Denied; only eligible old-roster members vote | G3 live |
+| Two council proposals with same base version | One APPLIED, other STALE; no vote rebase | Transaction/policy |
+| Roster/direct IAM/DB/console change without proof | No valid version/permission publication | Adversarial G5 |
+| Retry create/proposal | One resource/assignment, same N/T/voters; new keys/UUIDs cannot redraw | Transaction/policy |
+| Juror approves twice | Count one distinct voter only | Unique + proof |
+| T approvals without independent | No grant/council apply | G3 |
+| Outside jury/CoI | Cannot approve/reveal, including direct calls | API + G3 |
+| T valid APPROVE votes | Correct operation/context: recipient reveals or proposal applies; no cross-use | G3 live |
+| Votes for A used for B/another recipient | Denied | G3 live |
+| Expiry/policy/assignment change | Old proofs/grants no longer apply | G3 live |
+| Edited status/vote/assignment rows | Cannot create valid cryptographic authorization | Adversarial G2/G3 |
+| Concurrent approvals/adapter timeout | No duplicate grant or terminal-state revival | Integration |
+| IT self-grants role | Real QEA request remains unapplied below threshold | G5 live |
+| Logout/reload/DB/log/storage | No reporter plaintext/token outside allowed scope | Privacy |
+| Fresh checkout/empty DB | Install/migrate/generate/seed/build according to runbook | Reproducibility |
+| Local machine without toolchain | Open file:// index.html, working fixtures/classic assets, no API/SDK | test:ui:file + manual |
+| After merge | Same static UI through Next, real LIVE runtime/API at same commit, no fallback | test:ui:live + E2E |
 
-Mock/unit không thay live tests; thiếu config/chưa chạy ghi NOT RUN, không xem skip là PASS.
+Mock/unit tests never replace live tests; missing configuration or unrun cases are NOT RUN, and skips are not PASS.
 
-### 16.1. Demo hai phút
+### 16.1. Two-minute demo
 
-1. An gửi ý tưởng, reviewer không thấy tên; request mở sớm thật bị từ chối đúng tầng.
-2. APPROVED + consent mới mở/xác minh credit nếu G4 đạt; REJECTED không công khai.
-3. Hiện roster đã chốt từ đầu; nộp phản ánh, bốc số lượng N và voters thực, hiển thị T; fixture có nhãn.
-4. CEO/người bị loại bị chặn; dưới T vẫn khóa, đủ T đúng có independent mới mở. N=4 cần ba phiếu, không dùng mặc định hai.
-5. Tạo đề xuất đổi council: roster cũ còn hiệu lực khi pending, đủ vote và apply mới có version mới. Demo QEA thật nếu có thời gian; audit đúng nguồn.
+1. An submits an idea and reviewers cannot see the name; a real premature reveal request is denied at the correct layer.
+2. Reveal/verify credit only after APPROVED + consent and a passing G4; REJECTED never publishes identity.
+3. Show the roster fixed at initialization; submit a report, draw actual N/voters, and display T. Label fixtures clearly.
+4. CEO/excluded people are blocked; remain locked below T; reveal only with sufficient valid votes including an independent. N=4 requires three votes, never a default two.
+5. Propose a council change: old roster stays effective while pending; only enough votes and apply publish a new version. Demo real QEA if time allows; label audit sources correctly.
 
-Không đủ thời gian thì chọn luồng mạnh nhất đã chứng minh và nói rõ phần còn lại; không dựng endpoint chỉ ghi blocked. Quy định video/bài nộp đối chiếu Hackathon.md và nguồn chính thức khi nộp.
+If time is short, choose the strongest proven flow and disclose the rest; never build an endpoint that only records blocked. Check video/submission rules against Hackathon.md and official sources at submission time.
 
 ### 16.2. Definition of Done
 
-- [ ] Tùng pin dependency/config; hai người cùng SHA/runtime contract, máy bạn mở file mock và máy Tùng chạy LIVE.
-- [ ] DTO/schema/fixture/runtime/UI khớp; một static UI dùng MOCK/LIVE, không phải viết lại React; migration Tùng single writer.
-- [ ] Roster chốt một lần từ đầu, không bootstrap/seed overwrite; N/người random và T bất biến theo từng round.
-- [ ] Council thay đổi qua cùng VotingService như phản ánh; version mới chỉ APPLIED sau proof, xử lý STALE/phiếu cũ.
-- [ ] Auth/create/persist/reload/state/transaction chạy thật.
-- [ ] G1–G5 có kết quả riêng, phần chưa đạt khóa hoặc công bố rõ.
-- [ ] Mock tắt; deny ghi đúng nguồn APP/FABRIC/QEA/client.
-- [ ] Không persist/log plaintext reporter/token; công bố giới hạn ẩn danh.
-- [ ] Bypass/E2E/fresh checkout đạt cho phạm vi nộp bài.
-- [ ] README/Idea.MD khớp triển khai, không hứa tuyệt đối/vĩnh viễn chưa chứng minh.
-- [ ] Handoff, SHA demo, runbook/video theo yêu cầu đã xác nhận.
+- [ ] Tung pins dependencies/config; both use the same SHA/runtime contract; your machine opens mock files and Tung's runs LIVE.
+- [ ] DTO/schema/fixture/runtime/UI match; one static UI supports MOCK/LIVE without React rewrite; Tung is migration single writer.
+- [ ] Roster fixed once at initialization, no bootstrap/seed overwrite; random N/voters and immutable T per round.
+- [ ] Council changes use the same VotingService as reports; new version is APPLIED only after proof, with STALE/old-vote handling.
+- [ ] Auth/create/persist/reload/state/transactions run for real.
+- [ ] G1–G5 have separate results; unmet parts are locked or clearly disclosed.
+- [ ] Mock disabled for LIVE; denial sources correctly labeled APP/FABRIC/QEA/client.
+- [ ] No persisted/logged reporter plaintext/tokens; anonymity limits disclosed.
+- [ ] Bypass/E2E/fresh-checkout checks pass for submission scope.
+- [ ] README/Idea.MD match implementation, with no unproven absolute/permanent promises.
+- [ ] Handoff, demo SHA, runbook/video meet confirmed requirements.
 
-## 17. Nguồn kỹ thuật
+## 17. Technical sources
 
-Đối chiếu đúng version M0 đã pin, không tự coi interface minh họa là API Tide có sẵn.
+Check against the pinned M0 versions; illustrative interfaces are not assumed to be existing Tide APIs.
 
 - [TideCloak Quickstart](https://docs.tide.org/get-started/Tidecloak%20Quickstart).
 - [Next SDK](https://docs.tide.org/Languages/NextJS/tidecloak-nextjs-reference).
@@ -955,9 +955,9 @@ Không đủ thời gian thì chọn luồng mạnh nhất đã chứng minh và
 - [QEA](https://docs.tide.org/Core-Concepts/iga-workflow).
 - [Forseti](https://docs.tide.org/Core-Concepts/forseti-engine).
 - [Hermetic E2EE](https://docs.tide.org/Core-Concepts/hermetic-e2ee).
-- [Prisma 6.19.0 release](https://github.com/prisma/orm/releases/tag/6.19.0) — bản chọn cho SQLite/CLI ở đây, không khẳng định mới nhất.
+- [Prisma 6.19.0 release](https://github.com/prisma/orm/releases/tag/6.19.0) — selected SQLite/CLI version here, not a claim of latest version.
 - [Node randomInt](https://nodejs.org/api/crypto.html#cryptorandomintmin-max-callback).
 - [npm ci](https://docs.npmjs.com/cli/v11/commands/npm-ci/).
 - [Git merge](https://git-scm.com/docs/git-merge).
-- [Next.js public folder](https://nextjs.org/docs/app/api-reference/file-conventions/public-folder) — phục vụ static UI cùng ứng dụng.
-- [esbuild browser bundling](https://esbuild.github.io/api/#bundle) — Tùng build bridge, không bắt máy UI cài bundler.
+- [Next.js public folder](https://nextjs.org/docs/app/api-reference/file-conventions/public-folder) — serves static UI within the same application.
+- [esbuild browser bundling](https://esbuild.github.io/api/#bundle) — Tung builds the bridge; the UI machine need not install a bundler.

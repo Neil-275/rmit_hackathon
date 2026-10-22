@@ -1,85 +1,85 @@
-# Ý tưởng: Tiếng nói nhân viên có bảo chứng (VoiceVault)
+# Idea: Protected employee voice (VoiceVault)
 
-> Tài liệu lưu ý tưởng đề xuất cho Challenge 2: UNLOCKED. Các khả năng của TideCloak nêu ở đây dựa trên mô tả trong đề bài và **cần đối chiếu với tài liệu TideCloak** trước khi khẳng định trong bài nộp.
+> Proposed idea notes for Challenge 2: UNLOCKED. The TideCloak capabilities described here are based on the challenge brief and **must be checked against TideCloak documentation** before making claims in the submission.
 
-## 1. Vấn đề
+## 1. Problem
 
-Ý tưởng mở rộng từ "kênh tố giác" thành toàn bộ **tiếng nói từ dưới lên** (employee voice) trong công ty, gồm hai kiểu thất bại:
+The idea expands a "whistleblowing channel" into all **bottom-up employee voice** within a company, addressing two types of failure:
 
-| | Tố giác sai phạm | Đóng góp ý tưởng |
+| | Reporting misconduct | Contributing ideas |
 |---|---|---|
-| Rủi ro cho người nói | **Bị lộ danh tính** → bị trả đũa | **Bị xóa tên** → mất công trạng |
-| Ai gây ra | Người có quyền tra danh tính (HR, IT, lãnh đạo) | Người trung gian chuyển tiếp (sếp trực tiếp) |
-| Hệ quả | Không ai dám báo cáo | Không ai muốn đóng góp |
+| Risk to the speaker | **Identity exposed** → retaliation | **Name removed** → lost credit |
+| Who causes it | Those able to look up identities (HR, IT, leadership) | Intermediaries forwarding the idea (direct managers) |
+| Consequence | Nobody dares to report | Nobody wants to contribute |
 
-**Gốc rễ chung:** bên nào kiểm soát kênh truyền thì kiểm soát luôn danh tính và công trạng của người nói. Trong hệ thống thông thường, trường "tác giả" chỉ là một cột trong database: sếp, HR hay IT admin đều có thể đọc, sửa, hoặc đơn giản là không chuyển tiếp.
+**Shared root cause:** whoever controls the communication channel also controls the speaker's identity and credit. In a conventional system, the "author" field is merely a database column: a manager, HR or IT administrator can read or change it, or simply decline to forward the submission.
 
-**Ví dụ:** A đề xuất một ý tưởng và trình cho B (sếp của A). Khi B trình lên cấp cao hơn, B không ghi công A.
+**Example:** A proposes an idea and submits it to B (A's manager). When B presents it to higher management, B gives A no credit.
 
-## 2. Bằng chứng
+## 2. Evidence
 
-- **Bị lấy công ý tưởng:** khảo sát OfficeTeam (2009) cho thấy 29% nhân viên từng bị lấy công ý tưởng; 51% trong số đó không làm gì. Một khảo sát khác cho thấy gần 1/5 nhân viên tin sếp lấy công của mình. BambooHR xếp "sếp lấy công" là hành vi bị ghét nhất.
-- **Ý tưởng bị giữ lại:** Morrison & Detert phát hiện nhân viên không chỉ im lặng về tin xấu mà còn giữ lại cả ý tưởng cải tiến. Lý do hàng đầu: sợ bị đánh giá tiêu cực và sợ hỏng quan hệ. Việc lên tiếng phụ thuộc mạnh vào cảm nhận rằng đóng góp **có tác động và được ghi nhận**.
-- **Sợ trả đũa khi tố giác:** 34% người không báo cáo vì sợ lãnh đạo trả đũa, 30% vì sợ cấp trên trực tiếp (Ethics & Compliance Initiative, 2013).
-- **Lộ danh tính là chuyện có thật:** vụ Halliburton (Tòa phúc thẩm Liên bang Mỹ khu vực 5, 2014): công ty lần ra người tố giác, email nội bộ làm lộ danh tính, đồng nghiệp tẩy chay. Tòa xác định riêng việc tiết lộ danh tính đã là hành vi trả đũa.
+- **Idea credit theft:** an OfficeTeam survey (2009) found that 29% of employees had experienced idea theft; 51% of them took no action. Another survey found that nearly one in five employees believed their boss took their credit. BambooHR ranked "boss taking credit" as the most disliked behavior.
+- **Ideas withheld:** Morrison & Detert found that employees withhold improvement ideas as well as bad news. Leading reasons include fear of negative judgment and damaged relationships. Speaking up depends heavily on feeling that contributions **make an impact and receive recognition**.
+- **Fear of retaliation when reporting:** 34% did not report because they feared retaliation by leadership, and 30% feared their direct supervisor (Ethics & Compliance Initiative, 2013).
+- **Identity exposure happens:** in the Halliburton case (US Court of Appeals for the Fifth Circuit, 2014), the company traced the whistleblower, an internal email disclosed the identity, and colleagues ostracized the employee. The court held that disclosing the identity itself constituted retaliation.
 
-> Lưu ý: nhiều số liệu đến từ khảo sát cũ hoặc của bên bán giải pháp; dùng để minh họa và nên kiểm tra nguồn gốc trước khi trích dẫn.
+> Note: many figures come from older surveys or solution vendors; use them illustratively and check the original sources before citing them.
 
-## 3. Giải pháp
+## 3. Solution
 
-Mỗi đề xuất có **3 chế độ danh tính**, do chính người viết chọn:
+Each submission has **three identity modes**, selected by its author:
 
-1. **Credited (ghi danh):** tên tác giả gắn chặt vào ý tưởng từ lúc tạo. Sếp có thể *xác nhận / chuyển lên* nhưng **không thể xóa hay sửa tác giả**. Cấp trên luôn thấy "Người khởi xướng: A · Người đề cử: B".
-2. **Sealed (niêm phong):** ý tưởng được đánh giá "mù" theo giá trị, không lộ tên, tránh thiên vị. Tác giả **mở danh tính để nhận công** khi ý tưởng được duyệt. Dấu thời gian chứng minh quyền ưu tiên nếu người khác nộp bản "của mình" sau đó.
-3. **Protected report (tố giác):** hội đồng đạo đức đọc được nội dung, nhưng danh tính người báo cáo chỉ được giải mã khi **đủ ngưỡng phê duyệt** (ví dụ 2/3 thành viên, bắt buộc có một thành viên độc lập). CEO, HR, IT admin **không ai tự mở được**. Thay đổi thành viên hội đồng cũng cần đủ ngưỡng phê duyệt.
+1. **Credited:** the author's name is bound to the idea from creation. A manager can *endorse / escalate* it but **cannot remove or change the author**. Higher management always sees "Originator: A · Endorser: B".
+2. **Sealed:** ideas are reviewed blindly on merit, without names, to reduce bias. Authors **reveal their identity to receive credit** when an idea is approved. A timestamp proves priority if someone later submits a version "of their own".
+3. **Protected report:** the ethics council can read the content, but the reporter's identity is decrypted only after **the approval threshold is reached** (for example, two-thirds of members, including at least one independent member). The CEO, HR and IT administrators **cannot reveal it alone**. Council membership changes also require threshold approval.
 
-## 4. Vì sao TideCloak là bắt buộc
+## 4. Why TideCloak is necessary
 
-| Login + backend thông thường | TideCloak (Emergent Authority) |
+| Conventional login + backend | TideCloak (Emergent Authority) |
 |---|---|
-| DBA/IT có thể `UPDATE ideas SET author=...` | Bản ghi tác giả được bảo vệ bởi danh tính + chính sách; không một bên nào giữ quyền sửa |
-| Server giữ khóa → đọc được danh tính người tố giác | Danh tính được mã hóa; quyền giải mã hình thành từ chính sách + đủ phê duyệt, không nằm ở server |
-| Admin tự cấp cho mình vai trò "hội đồng đạo đức" | Thay đổi vai trò nhạy cảm cần đủ ngưỡng phê duyệt |
-| Nhân viên phải **tin** công ty | Nhân viên được **bảo đảm** bằng cơ chế, kể cả khi lãnh đạo là bên bị tố |
+| DBA/IT can run `UPDATE ideas SET author=...` | The author record is protected by identity + policy; no single party holds modification authority |
+| The server holds the key → it can read whistleblower identities | Identities are encrypted; decryption authority emerges from policy + sufficient approvals, rather than residing on the server |
+| Administrators assign themselves the "ethics council" role | Sensitive role changes require threshold approval |
+| Employees must **trust** the company | Employees receive **mechanical guarantees**, even when leadership is accused |
 
-Ở công ty truyền thống, nhân viên phải tin chính tổ chức mà họ báo cáo hoặc đóng góp. Sản phẩm này loại bỏ yêu cầu đó.
+In a conventional company, employees must trust the very organization to which they report or contribute. This product aims to remove that requirement.
 
-## 5. Giới hạn
+## 5. Limitations
 
-- **Không ngăn được việc sếp diễn đạt lại ý tưởng bằng lời ngoài hệ thống.** Sản phẩm cung cấp *bằng chứng ưu tiên* và *kênh chính thức có ghi công*; giá trị đến từ việc công ty quy định đề xuất phải đi qua kênh này.
-- **Nội dung tố giác có thể tự làm lộ người viết** (văn phong, chi tiết chỉ một người biết). TideCloak bảo vệ khóa, không bảo vệ suy luận từ nội dung.
-- Dấu thời gian, audit trail, luồng chuyển tiếp là **phần ứng dụng tự xây**, không tự có khi thêm TideCloak.
-- Thu hồi quyền chỉ chặn truy cập về sau, không lấy lại nội dung người khác đã xem.
+- **It cannot stop managers from rephrasing an idea verbally outside the system.** The product supplies *evidence of priority* and an *official channel that preserves credit*; its value depends on company rules requiring proposals to use that channel.
+- **Report content may identify its author** (writing style, details known to only one person). TideCloak protects keys, not inferences from content.
+- Timestamps, audit trails and escalation workflows are **application responsibilities**, not automatic consequences of adding TideCloak.
+- Revocation blocks future access; it cannot recover content someone has already viewed.
 
-## 6. Kịch bản demo 2 phút
+## 6. Two-minute demo scenario
 
-Nhân vật: **An** (kỹ sư), **Bình** (trưởng nhóm), **Chi** (giám đốc), hội đồng đạo đức 3 người, **IT admin**. Toàn bộ dữ liệu giả lập.
+Characters: **An** (engineer), **Binh** (team lead), **Chi** (director), a three-person ethics council, and an **IT administrator**. All data is simulated.
 
-| Thời gian | Nội dung |
+| Time | Content |
 |---|---|
-| 0:00–0:20 | **Rào cản:** 29% bị lấy công ý tưởng; vụ Halliburton lộ danh tính người tố giác. |
-| 0:20–0:55 | **Ý tưởng:** An gửi ý tưởng (Credited) → Bình chuyển lên Chi → Chi thấy "khởi xướng: An". Bình thử sửa tác giả → **bị từ chối**. |
-| 0:55–1:15 | **Admin vượt quyền:** IT admin tự gán mình vào hội đồng đạo đức → **bị chặn, chưa đủ phê duyệt**. |
-| 1:15–1:45 | **Tố giác:** An báo cáo sai phạm của Bình. Hội đồng đọc được nội dung. CEO thử xem danh tính → **bị từ chối**. 2/3 hội đồng duyệt cho thủ tục pháp lý → danh tính được mở. |
-| 1:45–2:00 | **Thay đổi:** nhân viên dám lên tiếng vì cơ chế bảo vệ họ, không cần tin bất kỳ ai. |
+| 0:00–0:20 | **Barrier:** 29% experienced idea credit theft; the Halliburton case exposed a whistleblower's identity. |
+| 0:20–0:55 | **Idea:** An submits an idea (Credited) → Binh escalates it to Chi → Chi sees "Originator: An". Binh attempts to change the author → **denied**. |
+| 0:55–1:15 | **Administrator overreach:** the IT administrator assigns themselves to the ethics council → **blocked, insufficient approvals**. |
+| 1:15–1:45 | **Report:** An reports misconduct by Binh. The council can read the content. The CEO attempts to view the identity → **denied**. Two of three council members approve disclosure for legal proceedings → the identity is revealed. |
+| 1:45–2:00 | **Change:** employees dare to speak up because the mechanism protects them, without needing to trust any individual. |
 
-## 7. Phạm vi MVP
+## 7. MVP scope
 
-- **Bắt buộc:** chế độ Credited (tác giả không thể sửa) + chế độ Protected report (giải mã danh tính theo ngưỡng phê duyệt).
-- **Để sau:** chế độ Sealed / đánh giá mù — nhắc trong README như hướng mở rộng.
-- Người dùng, tổ chức và dữ liệu đều giả lập.
+- **Required:** Credited mode (immutable authorship) + Protected report mode (threshold identity decryption).
+- **Later:** Sealed / blind review — mention it in the README as an extension.
+- Users, organizations and data are all simulated.
 
-## 8. Ánh xạ tiêu chí chấm điểm
+## 8. Judging criteria mapping
 
-| Tiêu chí | Điểm mạnh của ý tưởng |
+| Criterion | Strength of the idea |
 |---|---|
-| Vision & originality (25%) | Gộp tố giác và ghi công ý tưởng thành một bài toán "tiếng nói từ dưới lên"; không nằm trong 12 ý tưởng gợi ý. |
-| Trust constraint insight (20%) | Người nói phải tin chính tổ chức/sếp đang kiểm soát kênh truyền. |
-| Value & impact (20%) | Nhân viên được ghi công và an toàn; công ty nhận được nhiều ý tưởng và cảnh báo sớm hơn. |
-| Why TideCloak matters (20%) | Không admin/sếp/CEO nào đơn phương sửa tác giả, xem danh tính hay tự cấp quyền. |
-| Prototype & storytelling (15%) | Câu chuyện An–Bình–Chi dễ hiểu, có các khoảnh khắc "bị chặn" rõ ràng. |
+| Vision & originality (25%) | Combines whistleblowing and idea credit into a single "bottom-up voice" problem; outside the 12 suggested ideas. |
+| Trust constraint insight (20%) | Speakers must trust the organization/manager controlling the communication channel. |
+| Value & impact (20%) | Employees receive recognition and safety; companies receive more ideas and earlier warnings. |
+| Why TideCloak matters (20%) | No administrator/manager/CEO can unilaterally change authors, view identities or grant themselves privileges. |
+| Prototype & storytelling (15%) | The An–Binh–Chi story is easy to follow, with clear "blocked" moments. |
 
-## Nguồn
+## Sources
 
 - [29% of employees say they've had ideas stolen at work](https://www.reliableplant.com/Articles/Print/20473)
 - [Survey Shows Ideas Aren't Safe In The Office](https://wbjournal.com/article/survey-shows-ideas-arent-safe-in-the-office/)
@@ -92,21 +92,21 @@ Nhân vật: **An** (kỹ sư), **Bình** (trưởng nhóm), **Chi** (giám đ�
 - [Halliburton: revealing whistleblower's identity is adverse action](https://whistleblowersblog.org/2014/11/articles/sox-whistleblowers/halliburton-revealing-whistleblowers-identity-to-colleagues-is-adverse-action)
 - [Disclosing the Identity of a Complainant Can Constitute Retaliation (AFS Law)](https://www.afslaw.com/perspectives/alerts/disclosing-the-identity-complainant-can-constitute-retaliation-under-the)
 
-## 1. Vấn đề (Cập nhật)
+## 1. Problem (updated)
 
-| | Tố giác sai phạm | Đóng góp ý tưởng |
+| | Reporting misconduct | Contributing ideas |
 |---|---|---|
-| **Rủi ro cho người nói** | **Bị lộ danh tính** → bị trả đũa (đặc biệt khi người bị tố nằm trong ban kiểm soát) | **1. Sợ bị chê cười** nếu ý tưởng bị chê bất khả thi<br>**2. Bị xóa tên** → mất công trạng nếu ý tưởng tốt |
-| **Ai gây ra** | Người có quyền tra danh tính (HR, IT, lãnh đạo, thành viên hội đồng bị tố cáo) | Cấp trên trực tiếp hoặc người đánh giá (định kiến cá nhân hoặc chiếm đoạt công trạng) |
-| **Hệ quả** | Không ai dám báo cáo sai phạm của cấp trên | Nhân viên giữ im lặng, không dám đề xuất ý tưởng đột phá |
+| **Risk to the speaker** | **Identity exposed** → retaliation (especially when the accused sits on the oversight board) | **1. Fear of ridicule** if an idea is considered infeasible<br>**2. Name removed** → lost credit if the idea is good |
+| **Who causes it** | Those able to look up identities (HR, IT, leadership, accused council members) | Direct managers or reviewers (personal bias or appropriation of credit) |
+| **Consequence** | Nobody dares to report misconduct by superiors | Employees stay silent and avoid proposing breakthrough ideas |
 
-## 3. Giải pháp (Cập nhật cơ chế)
+## 3. Solution (updated mechanism)
 
-1. **Sealed-Credited Idea (Sáng kiến bảo chứng kép):**
-   - **Lúc gửi & đánh giá:** Danh tính tác giả được mã hóa (niêm phong). Cấp trên đánh giá "mù" hoàn toàn dựa trên giá trị ý tưởng, không định kiến.
-   - **Nếu bị từ chối:** Danh tính **mãi mãi không được giải mã** → Nhân viên không bao giờ sợ bị chê cười hay đánh giá thấp vì ý tưởng chưa khả thi.
-   - **Nếu được duyệt:** Điều kiện chính sách TideCloak thỏa mãn → Hệ thống mở khóa chữ ký tác giả gốc, ghi nhận rõ: *"Người khởi xướng: A · Người đề cử: B"*. B không thể sửa hay xóa tên A.
-2. **Protected Report với Hội đồng ngẫu nhiên chống xung đột lợi ích (CoI-Free Random Jury):**
-   - Khi báo cáo sai phạm, nếu người bị tố cáo nằm trong danh sách Hội đồng đạo đức (Ethics Pool), hệ thống **tự động loại trừ** người đó.
-   - Hệ thống **chọn ngẫu nhiên** một nhóm thành viên (ví dụ 3 người) từ những người không liên quan trong Pool để lập Hội đồng xử lý vụ việc.
-   - Danh tính người báo cáo chỉ được giải mã bởi TideCloak khi đạt **đủ ngưỡng phê duyệt (2/3)** từ đúng nhóm ngẫu nhiên này. CEO, IT Admin và người bị tố cáo hoàn toàn bị chặn.
+1. **Sealed-Credited Idea (dual protection):**
+   - **Submission & review:** the author's identity is encrypted (sealed). Superiors review blindly, entirely on the idea's merit, without identity bias.
+   - **If rejected:** the identity **is never decrypted** → employees need not fear ridicule or being judged poorly for ideas that are not yet feasible.
+   - **If approved:** TideCloak policy conditions are satisfied → the system unlocks the original author's signature and clearly records: *"Originator: A · Endorser: B"*. B cannot change or remove A's name.
+2. **Protected Report with a conflict-free random jury (CoI-Free Random Jury):**
+   - When misconduct is reported, if an accused person belongs to the Ethics Pool, the system **automatically excludes** that person.
+   - The system **randomly selects** a group (for example, three members) from the remaining uninvolved Pool members to form the case jury.
+   - TideCloak decrypts the reporter's identity only when **the approval threshold (two-thirds)** is reached by that specific randomly assigned jury. The CEO, IT administrator and accused person are all blocked.

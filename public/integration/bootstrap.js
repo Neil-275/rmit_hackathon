@@ -1,12 +1,12 @@
-/* Minimal baseline owned by Tùng. No LIVE implementation or credentials are included. */
+/* Minimal baseline owned by Tung. No LIVE implementation or credentials are included. */
 (function(global){
   'use strict';
   function problem(code){
     document.body.dataset.appState='error';
     var root=document.getElementById('app');root.replaceChildren();
     var box=document.createElement('section');box.className='startup error';
-    var h=document.createElement('h1');h.textContent='Kết nối chưa sẵn sàng';
-    var p=document.createElement('p');p.textContent=code==='CONTRACT_MISMATCH'?'Giao diện và hệ thống đang dùng hai phiên bản khác nhau. Hãy cập nhật cùng một bản bàn giao.':'Runtime LIVE chưa sẵn sàng. Bạn có thể mở trực tiếp file HTML để xem bản mô phỏng, hoặc chờ kết nối hệ thống hoàn tất.';
+    var h=document.createElement('h1');h.textContent='Connection unavailable';
+    var p=document.createElement('p');p.textContent=code==='CONTRACT_MISMATCH'?'The interface and runtime use different contract versions. Update them from the same handoff.':'The LIVE runtime is unavailable. Open the HTML file directly for the simulation, or wait for the system connection to be configured.';
     var badge=document.createElement('code');badge.textContent=code;
     box.append(h,p,badge);root.appendChild(box);
   }

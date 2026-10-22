@@ -1,45 +1,55 @@
-# VoiceVault — giao diện chạy trực tiếp
+# VoiceVault — open the UI directly
 
-Mở `index.html` bằng Chrome hoặc Edge (nhấp đúp, hoặc kéo file vào trình duyệt).
-Không cần Next.js, npm, Docker hay server. Đường dẫn phải bắt đầu bằng `file://`.
+Open `index.html` in Chrome or Edge (double-click it, or drag the file into the browser).
+Next.js, npm, Docker and a server are unnecessary. The address must start with `file://`.
 
-Đây là **MOCK**, sử dụng dữ liệu giả và chỉ lưu trong bộ nhớ của tab. Tải lại trang
-sẽ khôi phục dữ liệu mẫu. Bản này không thực hiện mã hóa, xác thực thật hay TideCloak.
+This is a **MOCK**, using synthetic data stored only in the tab's memory. Reloading
+restores the sample data. This version performs no encryption, real authentication or TideCloak operations.
 
-## Những gì có thể thử
+## Things to try
 
-- Sáu trang: Tổng quan, Sáng kiến, Phản ánh, Bỏ phiếu, Hội đồng, Nhật ký.
-- An gửi sáng kiến; Bình đề cử; Chi duyệt hoặc từ chối. Chỉ công khai tác giả khi có consent.
-- An gửi phản ánh, chọn nhiều người bị phản ánh. Hội đồng được bốc từ roster hiện hành sau khi loại xung đột.
-- Thành viên được phân công mở hồ sơ và chọn **Đề nghị mở danh tính**, nhập lý do để tạo lượt vote.
-  N và danh sách đã chọn được giữ nguyên. T = ceil(2N/3), đồng thời phải có phiếu độc lập.
-- Frank, Grace, Henry thử hồ sơ mẫu `report-101`: N=4, T=3. Sau ba phiếu APPROVE,
-  Frank là recipient có thể xem danh tính giả. Hai phiếu chưa đủ, kể cả đã có Grace.
-- Frank đề xuất thay đổi hội đồng. Thành viên được chọn vote; đủ phiếu mới hiện thao tác
-  áp dụng cho người đề xuất. READY chưa thay roster; APPLIED tăng version và làm lượt cũ STALE.
-- Chọn tình huống mô phỏng để thử danh sách rỗng, thiếu quyền, hết hạn, lỗi policy hoặc thiếu juror.
+- Six pages: Overview, Ideas, Reports, Voting, Council, Audit.
+- An submits an idea; Binh endorses it; Chi approves or rejects it. Author credit is published only with consent.
+- An submits a report and selects multiple accused people. The jury is drawn from the current roster after conflict exclusions.
+- An assigned member opens the report and chooses **Request identity access**, entering a purpose to create a voting round.
+  N and the assigned voters remain unchanged. T = ceil(2N/3), and an independent approval is required.
+- Frank, Grace and Henry can try sample `report-101`: N=4, T=3. After three APPROVE votes,
+  Frank, the recipient, can view the synthetic identity. Two votes are insufficient, even when Grace has approved.
+- Frank proposes a council change. Selected members vote; the proposer can apply it only after sufficient approvals.
+  READY does not change the roster; APPLIED increases its version and marks older rounds STALE.
+- Select a simulation scenario to try empty lists, missing permissions, expiry, policy errors or insufficient jurors.
 
-Nhân vật và tình huống chỉ hiện ở MOCK. Đây là công cụ thử giao diện, không phải cách đăng nhập.
-Nút đóng, đổi trang, đổi nhân vật và đăng xuất xóa phiên xem danh tính; phản hồi reveal đến muộn bị bỏ qua.
+Persona and scenario controls appear only in MOCK. They are UI testing tools, not authentication.
+Closing the identity view, navigating, switching personas or signing out clears the identity-view session; late reveal responses are discarded.
 
-## Kiểm thử
+## Tests
 
-Chạy từ thư mục gốc project trong PowerShell:
+Run from the project root in PowerShell:
 
 ```powershell
 & ./public/ui/tests/run.ps1 -Suite all
 ```
 
-Có thể chọn `runtime` hoặc `browser`. Script dùng Node đã có trong PATH, hoặc Node
-được tích hợp sẵn trong VS Code tại đường dẫn cài đặt mặc định. Browser suite cần Chrome/Edge;
-có thể đặt `VOICEVAULT_CHROME` nếu trình duyệt cài ở nơi khác. Không có bước cài dependency.
-Giao diện dùng hằng ngày chỉ cần trình duyệt, không cần runtime chạy test.
+You can select `runtime` or `browser`. The script uses Node from PATH, or the Node
+runtime embedded in VS Code at its default installation path. The browser suite needs Chrome/Edge;
+set `VOICEVAULT_CHROME` if the browser is installed elsewhere. No dependency installation is required.
+Everyday UI use needs only a browser, without the test runtime.
 
-## Nối hệ thống của Tùng
+## Connect Tung's system
 
-HTTP(S) chỉ chấp nhận LIVE v1. Thiếu `public/integration/runtime.generated.js` hoặc
-factory tương thích thì hiển thị lỗi và giữ chức năng khóa. Chạy `python -m http.server`
-sẽ không tự chuyển sang demo.
+HTTP(S) accepts only LIVE v1. If `public/integration/runtime.generated.js` or a
+compatible factory is missing, an error appears and functionality stays locked. Running `python -m http.server`
+does not switch automatically to the demo.
 
-Xem [hướng dẫn tích hợp và merge](../../docs/integration/static-ui-handoff.md)
-và [ghi chú thiết kế](../../docs/design/voicevault-taste.md).
+See the [integration and merge guide](../../docs/integration/static-ui-handoff.md)
+and [design notes](../../docs/design/voicevault-taste.md).
+
+## Overview and connection status
+
+The overview distinguishes visible voting activity from **Votes awaiting you**. The personal count
+uses each round's `canVote` capability and excludes rounds where you have already voted; it never
+infers voting rights from being the reporter. All four metric cards link to their corresponding pages.
+
+Persona/Scenario selectors are MOCK-only. LIVE uses the authenticated SessionView and shows a green
+**LIVE — Runtime connected** banner after session confirmation. Signed-out sessions show **Sign in required**.
+The banner does not claim that a TideCloak Fabric connection or security gate has been verified.

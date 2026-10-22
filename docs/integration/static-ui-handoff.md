@@ -1,77 +1,78 @@
-# Bàn giao static UI cho Tùng
+# Static UI handoff for Tung
 
-Baseline tài liệu: `8725f1a`. Thay đổi hiện ở working tree, chưa commit/merge/push.
-Môi trường không cho tạo Git ref nên chưa tạo được `work/ui-static`.
-Phạm vi đã implement: phần giao diện của `architecture_toi.md` và runtime MOCK v1.
-Backend, database, IAM và TideCloak LIVE theo `architecture_tung.md` chưa implement trong đợt này.
+Architecture documentation baseline: `8725f1a`; existing UI baseline: `4eb5305`.
+The English/color revision is currently in the working tree without a new commit/merge/push.
+An earlier attempt to create `work/ui-static` was blocked by this environment's Git-ref permissions.
+Implemented scope: the UI portion of `architecture_toi.md` and the MOCK v1 runtime.
+Backend, database, IAM and TideCloak LIVE from `architecture_tung.md` are not implemented in this deliverable.
 
-## Ownership và thứ tự merge
+## Ownership and merge order
 
-| Đường dẫn | Người phụ trách | Lưu ý |
+| Path | Owner | Notes |
 | --- | --- | --- |
-| `public/ui/` | Bạn | HTML, CSS, views, mock runtime và test |
-| `public/integration/bootstrap.js` | Tùng | Baseline tối thiểu được tạo để mở UI; review trước khi nhập |
-| `public/integration/contract-fixtures.js` | Tùng | Fixtures giả dùng chung; giữ global và contractVersion |
-| `public/integration/runtime.generated.js` | Tùng | Chưa có; bundle LIVE dạng classic script/IIFE |
-| Contract/API/schema/dependency/migration | Tùng | UI không thay đổi các phần này |
+| `public/ui/` | You | HTML, CSS, views, mock runtime and tests |
+| `public/integration/bootstrap.js` | Tung | Minimal baseline created to open the UI; review before importing |
+| `public/integration/contract-fixtures.js` | Tung | Shared synthetic fixtures; retain globals and contractVersion |
+| `public/integration/runtime.generated.js` | Tung | Not yet present; LIVE bundle as a classic script/IIFE |
+| Contract/API/schema/dependency/migration | Tung | The UI does not change these areas |
 
-1. Tùng tạo/kiểm tra baseline `integration/voicevault` theo kiến trúc chung; ghi lại SHA.
-2. Khi Git có thể ghi, đưa các file của đợt này vào `work/ui-static`. Chỉ stage file liên quan;
-   không stage `taste-skill-main.zip`, thư mục skill được tải về, log hay profile trình duyệt.
-   Không chuyển nhánh khi còn thay đổi chưa được bảo toàn. Không reset/chép đè cả repository.
-3. Tùng đối chiếu hai file integration ở bảng trên với baseline của mình. Nếu đã có phiên bản riêng,
-   merge nội dung có chọn lọc; giữ thứ tự script và quy tắc file/HTTP ở phần dưới.
-4. Fetch hai nhánh, tạo nhánh tích hợp tạm từ `integration/voicevault`. Merge `work/server-policy`
-   rồi `work/ui-static` với `--no-ff --no-commit`; review, giải conflict, chạy test trên cây đã merge
-   trước khi tạo merge commit. Nếu không có conflict, Git vẫn dừng trước commit để review.
-5. Chạy kiểm thử local và kiểm thử LIVE của Tùng. Ghi SHA UI, SHA server và kết quả G1–G5 vào handoff.
-   Chỉ cập nhật integration sau khi các kiểm tra cần thiết đạt.
-6. Máy bạn nhận lại integration và mở `public/ui/index.html`; không cần chạy npm hay migration.
+1. Tung creates/checks the `integration/voicevault` baseline against the shared architecture and records its SHA.
+2. When Git becomes writable, put this deliverable's files on `work/ui-static`. Stage only relevant files;
+   do not stage `taste-skill-main.zip`, downloaded skill directories, logs or browser profiles.
+   Do not switch branches while changes remain unpreserved. Do not reset or overwrite the entire repository.
+3. Tung compares the two integration files in the table with his baseline. If he has his own versions,
+   merge selectively; preserve the script order and file/HTTP rules below.
+4. Fetch both branches and create a temporary integration branch from `integration/voicevault`. Merge `work/server-policy`
+   followed by `work/ui-static` using `--no-ff --no-commit`; review, resolve conflicts and test the merged tree
+   before creating the merge commit. Even without conflicts, Git stops before the commit for review.
+5. Run local tests and Tung's LIVE tests. Record the UI SHA, server SHA and G1–G5 results in the handoff.
+   Update integration only after the required checks pass.
+6. Your machine receives the integrated version and opens `public/ui/index.html`; npm and migrations are unnecessary.
 
-Nếu dùng ZIP: chỉ gửi `public/ui/`, tài liệu bàn giao và hai file integration để Tùng **review riêng**.
-ZIP giữ đường dẫn tương đối, không có `.git`, `.env`, database hay credential.
-Tùng nhập ZIP vào nhánh import từ SHA baseline đã ghi, xem diff rồi mới merge.
+If using ZIP: send only `public/ui/`, handoff documentation and the two integration files for Tung to **review separately**.
+Preserve relative paths; exclude `.git`, `.env`, databases and credentials.
+Tung imports the ZIP on an import branch from the recorded baseline SHA, inspects the diff and then merges.
 
-## Bootstrap LIVE
+## LIVE bootstrap
 
-`index.html` dùng classic `defer` theo thứ tự: fixtures → mock → helpers → dialogs → pages → app → bootstrap.
-Không có import ES module, CDN hay fetch JSON khi mở file.
+`index.html` uses classic `defer` scripts in this order: fixtures → mock → helpers → dialogs → pages → app → bootstrap.
+There are no ES module imports, CDNs or JSON fetches when opening the file.
 
 - `file://`: factory `window.createVoiceVaultMock(window.VoiceVaultFixtures)`.
-- HTTP(S): bootstrap tải `../integration/runtime.generated.js` và gọi
-  `await window.createVoiceVaultLiveRuntime()`. Factory phải trả `{mode:'LIVE', contractVersion:'v1', ...methods}`.
-- Mỗi lần mount gọi `init()`; `init.data` là SessionView. Không có LIVE bundle/không tương thích/không có policy
-  phải báo lỗi. Tuyệt đối không gắn runtime MOCK với nhãn LIVE.
-- Factory LIVE chỉ là browser adapter. Không nhúng server secret, refresh token hoặc private key vào bundle.
+- HTTP(S): bootstrap loads `../integration/runtime.generated.js` and calls
+  `await window.createVoiceVaultLiveRuntime()`. The factory must return `{mode:'LIVE', contractVersion:'v1', ...methods}`.
+- Every mount calls `init()`; `init.data` is SessionView. Missing/incompatible LIVE bundles or missing policy
+  must produce errors. Never attach a MOCK runtime under a LIVE label.
+- The LIVE factory is a browser adapter only. Do not embed server secrets, refresh tokens or private keys in the bundle.
 
-## Hình dạng dữ liệu UI đang dùng
+## Data shapes consumed by the UI
 
-Tất cả method trả `Promise<ApiResult<T>>`:
+Every method returns `Promise<ApiResult<T>>`:
 
 ```js
 { ok: true, data, requestId, contractVersion: 'v1' }
 { ok: false, error: { code, message, enforcement, retryable }, requestId, contractVersion: 'v1' }
 ```
 
-Đây là shape bàn giao của static UI, cần đối chiếu/chốt với schema LIVE của Tùng;
-không phải tuyên bố adapter hay API LIVE đã được kiểm thử.
+This is the static UI handoff shape and must be compared/agreed with Tung's LIVE schema;
+it does not claim that a LIVE adapter or API has been tested.
 
-| View | Trường UI cần |
+| View | Required UI fields |
 | --- | --- |
 | Session | `authenticated, subject, displayName, role, capabilities.canSubmit` |
-| Page | `items, nextCursor`; UI hiện lấy tối đa 50 bản ghi, chưa có phân trang LIVE |
+| Page | `items, nextCursor`; the UI currently fetches at most 50 records, without LIVE pagination |
 | Idea | `id,title,description,category,status,version,createdAt,publicCredit,capabilities` |
-| Idea capabilities | `canEndorse,canDecide,canReveal`; publicCredit chỉ xuất hiện khi được phép |
+| Idea capabilities | `canEndorse,canDecide,canReveal`; publicCredit appears only when permitted |
 | Report | `id,title,evidenceDetails,accusedPersonIds,createdAt,status,version,voters,voterCount,quorumRequired,votingRequestId,voting,capabilities.canRequestUnmask` |
 | VotingRequest | `id,resourceId,operation,voters,voterCount,quorumRequired,councilVersion,status,approvalCount,validApprovals,independentApproved,expiresAt,recipientSubject,canVote,canReveal` |
 | Voter / Vote | Voter: `id,displayName,independent`; Vote: `voterId,decision,reason` |
 | Council | `version,selectionPolicy,members,capabilities.canPropose`; member: `subject,displayName,title,active,independent,membershipRole` |
 | CouncilChange | `id,reason,baseCouncilVersion,status,proposedMembers,proposedSelectionPolicy,voting,capabilities.canApply` |
 | Directory | `people:[{id,displayName,title,department}]` |
-| Audit | Page; event: `action,actor,targetId,enforcement,createdAt`; không có identity/contact/token |
-| Reveal | `displayName,contact?`; MOCK thêm `simulated:true`. Chỉ truyền cho dialog, không lưu vào page state |
+| Audit | Page; event: `action,actor,targetId,enforcement,createdAt`; no identity/contact/token |
+| Reveal | `displayName,contact?`; MOCK adds `simulated:true`. Pass only to the dialog; do not retain in page state |
 
-Danh sách method ở architecture §5.4 được giữ nguyên. Các input mutation hiện dùng:
+The method list in architecture §5.4 is unchanged. Current mutation inputs:
 
 ```js
 submitIdea({ title, description, category, publishCreditOnApproval })
@@ -86,26 +87,51 @@ applyCouncilChange(changeId, baseCouncilVersion)
 revealIdentity(kind, resourceId, votingRequestId?) // kind = IDEA | REPORT
 ```
 
-`createUnmaskRequest` trả `{id,votingRequestId,voting}`. Report mới có assignment nhưng `voting:null`;
-assigned juror mở chi tiết và tạo request. `listReports`/`listCouncilChanges` trả voting summary lồng sẵn
-để render. UI chưa polling; adapter cần trả trạng thái mới khi refresh, hoặc bổ sung subscription sau.
-Ba report seed đã có request để demo ngay N=3/4/5.
+`createUnmaskRequest` returns `{id,votingRequestId,voting}`. A new report has an assignment but `voting:null`;
+an assigned juror opens its details and creates the request. `listReports`/`listCouncilChanges` return nested
+voting summaries for rendering. The UI does not poll; the adapter should return current state on refresh,
+or add subscriptions later. Three seeded reports already have requests to demonstrate N=3/4/5 immediately.
 
-Capability chỉ giúp hiển thị UI; server và cơ chế Tide phải kiểm chứng mọi thao tác độc lập.
-MOCK không tạo proof, binding hash hay authorization mật mã thật.
-Request DENIED/EXPIRED không được tự mở lại trong UI hiện tại; không đổi N/người để tìm kết quả thuận lợi.
-Luồng tạo request mới sau vòng kết thúc và phân trang cần chốt thêm khi nối LIVE.
+Capabilities support UI presentation only; the server and Tide mechanisms must independently verify every operation.
+MOCK creates no real cryptographic proof, binding hash or authorization.
+DENIED/EXPIRED requests cannot automatically reopen in the current UI; do not change N/voters to obtain a favorable outcome.
+The flow for creating a new request after a completed round, and pagination, need further agreement during LIVE integration.
 
-## Bằng chứng kiểm tra
+## Verification evidence
 
-- `& ./public/ui/tests/run.ps1 -Suite all`: bộ test runtime và browser; kết quả cuối ghi trong plan.
-- Test thực thi mock implementation, DOM thật qua Chrome và HTTP startup khi thiếu LIVE bundle.
-- Có regression cho N=4/5, phiếu trùng/không được chọn, thiếu independent, consent, CoI nhiều accused,
-  giữ assignment khi retry/khởi tạo request, READY/APPLIED/STALE/expiry, XSS và reveal đến muộn sau logout/đổi trang/đổi persona.
-- Review độc lập tìm ba lỗi quan trọng; đã tái hiện bằng test fail rồi sửa và chạy lại:
-  identity race, audit lộ submitter, apply council sau expiry.
-- Chrome headless test cần cờ `--no-sandbox` trong profile tạm trên máy này; mở HTML bình thường không cần cờ đó.
-- Node tích hợp VS Code có thể in cảnh báo Crashpad `Access is denied`; kết quả test và exit code vẫn được thu riêng.
+- `& ./public/ui/tests/run.ps1 -Suite all`: runtime and browser suite; final results are recorded in the plan.
+- Tests execute the mock implementation, real DOM through Chrome, and HTTP startup with the LIVE bundle absent.
+- Regression coverage includes N=4/5, duplicate/unassigned votes, missing independent approval, consent, multiple-accused CoI,
+  assignment preservation on retry/request creation, READY/APPLIED/STALE/expiry, XSS and late reveal after logout/navigation/persona changes.
+- Independent review found three important bugs; each was reproduced with a failing test, fixed and retested:
+  identity race, submitter leakage in audit, and council application after expiry.
+- Headless Chrome tests need `--no-sandbox` in a temporary profile on this machine; normal HTML opening does not need that flag.
+- VS Code's embedded Node may print a Crashpad `Access is denied` warning; test results and exit code are collected separately.
 
-**G1, G2, G3, G4, G5: NOT RUN.** Chưa có LIVE adapter/TideCloak/backend để kiểm chứng.
-Không dùng kết quả MOCK hoặc visual inspector để tuyên bố các gate này đã đạt.
+**G1, G2, G3, G4, G5: NOT RUN.** No LIVE adapter/TideCloak/backend is available to verify them.
+MOCK results or visual inspection cannot establish that these gates have passed.
+
+## English / Swiss Cobalt revision
+
+Existing UI baseline: `4eb5305277d754742e8f2aa33d188a037ee6e76d` (`UI`), after architecture commit `8725f1a`.
+The English and color changes are in the working tree and have not been committed by this agent.
+The interface, validation messages, fixtures, source comments, tests and project documentation now use English.
+Keep API names, subject IDs and contract v1 unchanged when integrating; the displayed demo names are transliterated.
+Native field validation uses explicit English messages, independent of browser locale.
+
+The refreshed palette is described in [the design notes](../design/voicevault-taste.md).
+The earlier English/color suite had 28 tests (15 runtime and 13 browser). LIVE/backend/TideCloak and G1–G5 remain NOT RUN.
+
+## Capability and LIVE presentation polish
+
+The overview's personal voting count is derived from `voting.status === 'COLLECTING' && voting.canVote === true`.
+Visible report/council activity is presented separately. Adapters must return `canVote` for the authenticated
+SessionView, including duplicate-vote, expiry and council-version restrictions; UI labels do not confer authority.
+
+The simulation-controls container is explicitly hidden in LIVE even if an adapter accidentally exposes a
+`simulation` property. Session identity comes from SessionView, and the banner changes from checking the
+session to green **LIVE — Runtime connected**, or **Sign in required** after sign-out. This reports adapter/session
+availability, not Fabric proof or G1–G5 completion. No new connection-status fields were added to contract v1.
+
+The LIVE presentation test uses an isolated adapter stub; it does not establish a real TideCloak connection.
+After this polish, the full local suite passes **31/31** tests (15 runtime, 16 browser).

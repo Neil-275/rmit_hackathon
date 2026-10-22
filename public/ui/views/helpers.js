@@ -11,6 +11,24 @@
       else if(key==='value')node.value=value;
       else node.setAttribute(key,String(value));
     });
+    if(['input','textarea','select'].includes(tag)){
+      // Keep validation copy in English even when the browser uses another language.
+      node.addEventListener('invalid',function(){
+        node.setCustomValidity('');
+        var validity=node.validity,message='';
+        if(validity.valueMissing)message='Please complete this field.';
+        else if(validity.typeMismatch)message=node.type==='email'?'Enter a valid email address.':'Enter a valid value.';
+        else if(validity.tooShort)message='Use at least '+node.minLength+' characters.';
+        else if(validity.tooLong)message='Use no more than '+node.maxLength+' characters.';
+        else if(validity.rangeUnderflow)message='Enter a value of at least '+node.min+'.';
+        else if(validity.rangeOverflow)message='Enter a value no greater than '+node.max+'.';
+        else if(validity.stepMismatch)message='Enter a value that matches the required step.';
+        else if(validity.patternMismatch)message='Use the requested format.';
+        else if(validity.badInput)message='Enter a valid number.';
+        node.setCustomValidity(message);
+      });
+      ['input','change'].forEach(function(event){node.addEventListener(event,function(){node.setCustomValidity('');});});
+    }
     function append(child){if(Array.isArray(child))child.forEach(append);else if(child!==null&&child!==undefined&&child!==false)node.appendChild(child instanceof Node?child:document.createTextNode(String(child)));}
     children.forEach(append);return node;
   };
@@ -40,16 +58,16 @@
   };
   V.icon=function(name,size){var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('width',size||20);svg.setAttribute('height',size||20);svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.65');svg.setAttribute('stroke-linecap','round');svg.setAttribute('stroke-linejoin','round');svg.setAttribute('aria-hidden','true');(paths[name]||paths.document).forEach(function(d){var p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d',d);svg.appendChild(p);});return svg;};
   V.button=function(label,fn,attrs){return V.el('button',Object.assign({type:'button',class:'button',onclick:fn},attrs||{}),label);};
-  V.labels={UNDER_REVIEW:'Đang xem xét',ENDORSED:'Đã đề cử',APPROVED:'Đã duyệt',REJECTED:'Đã từ chối',INVESTIGATING:'Đang xử lý',AWAITING_ELIGIBLE_JURY:'Chờ hội đồng hợp lệ',COLLECTING:'Đang lấy ý kiến',READY:'Đủ điều kiện',GRANTED:'Đã cấp quyền xem',APPLIED:'Đã áp dụng',DENIED:'Không thông qua',EXPIRED:'Đã hết hạn',STALE:'Phiên bản đã thay đổi',APPLYING:'Đang áp dụng'};
+  V.labels={UNDER_REVIEW:'Under review',ENDORSED:'Endorsed',APPROVED:'Approved',REJECTED:'Rejected',INVESTIGATING:'Under investigation',AWAITING_ELIGIBLE_JURY:'Awaiting eligible jury',COLLECTING:'Collecting votes',READY:'Ready',GRANTED:'Access granted',APPLIED:'Applied',DENIED:'Denied',EXPIRED:'Expired',STALE:'Version conflict',APPLYING:'Applying'};
   V.badge=function(status){var tone=['APPROVED','READY','APPLIED','GRANTED'].includes(status)?'green':['REJECTED','DENIED'].includes(status)?'red':['EXPIRED','STALE','AWAITING_ELIGIBLE_JURY'].includes(status)?'amber':'purple';return V.el('span',{class:'badge '+tone},V.el('span',{class:'badge-dot'}),V.labels[status]||status);};
   V.tag=function(label,kind){return V.el('span',{class:'tag '+(kind||'')},label);};
-  V.categories={PROCESS:'Quy trình',CULTURE:'Văn hóa',SUSTAINABILITY:'Bền vững',PRODUCT:'Sản phẩm'};
+  V.categories={PROCESS:'Process',CULTURE:'Culture',SUSTAINABILITY:'Sustainability',PRODUCT:'Product'};
   V.avatar=function(name,small){var initials=String(name||'?').split(' ').filter(Boolean).slice(0,2).map(function(s){return s[0];}).join('').toUpperCase();return V.el('span',{class:'avatar'+(small?' small':'')},initials);};
-  V.date=function(value){return new Intl.DateTimeFormat('vi-VN',{day:'2-digit',month:'2-digit',timeZone:'Asia/Bangkok'}).format(new Date(value));};
-  V.matches=function(value,query){function normalize(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').toLowerCase();}return normalize(value).includes(normalize(query));};
+  V.date=function(value){return new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'2-digit',timeZone:'Asia/Bangkok'}).format(new Date(value));};
+  V.matches=function(value,query){function normalize(s){return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\u0111/g,'d').toLowerCase();}return normalize(value).includes(normalize(query));};
   V.empty=function(title,detail,action){return V.el('div',{class:'empty-state'},V.el('span',{class:'empty-icon'},V.icon('document',27)),V.el('h3',{},title),V.el('p',{},detail),action);};
   V.sectionTitle=function(title,aside){return V.el('div',{class:'section-title'},V.el('h2',{},title),aside);};
-  V.sealed=function(){return V.el('span',{class:'sealed'},V.icon('lock',13),'Danh tính ẩn');};
+  V.sealed=function(){return V.el('span',{class:'sealed'},V.icon('lock',13),'Identity sealed');};
   V.field=function(label,name,attrs,kind){var input=V.el(kind||'input',Object.assign({name:name,id:'field-'+name},attrs||{}));return {input:input,node:V.el('label',{class:'field',for:'field-'+name},V.el('span',{},label),input)};};
   global.VoiceVaultView=V;
 }(window));
