@@ -1,0 +1,6 @@
+.superpowers/
+public/ui/tests/.artifacts/
+.taste-skill/
+debug.log
+public/ui/tests/red-runtime.log
+taste-skill-main/

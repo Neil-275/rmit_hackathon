@@ -1,3 +1,10 @@
+## Chạy giao diện hiện tại
+
+Mở trực tiếp [public/ui/index.html](public/ui/index.html) bằng Chrome/Edge; không cần Next.js hay Docker.
+Đây là bản **MOCK dùng dữ liệu giả**, chưa kết nối TideCloak/backend LIVE. Xem
+[hướng dẫn sử dụng](public/ui/README.md) và [bàn giao cho Tùng](docs/integration/static-ui-handoff.md).
+Các phần dưới mô tả mục tiêu sản phẩm và kiến trúc cần được xác minh khi tích hợp LIVE.
+
 ## Project overview
 
 **VoiceVault** is a cryptographically enforced employee voice platform protecting bottom-up ideas and whistleblowing reports without requiring employees to trust their organization's hierarchy or administrators.
