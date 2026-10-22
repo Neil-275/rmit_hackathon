@@ -11,14 +11,14 @@ Idea boxes and ethics hotlines fail for the same reason: whoever runs the channe
 - **Council changes go through the same vote.** There is no "edit roster" button; changes are proposals that need a quorum and go stale if the roster changes first.
 
 ### What is enforced where (honest scope)
-| Guarantee | Enforced by |
-| --- | --- |
-| Login, roles, client-side encryption of identity | TideCloak (Tide Cybersecurity Fabric) |
-| Server never receives plaintext identity | Browser runtime design; server stores ciphertext only |
-| Conflict-of-interest exclusion, N/T draw, quorum counting, council-change voting | VoiceVault app (labelled **APP**) |
-| Identity release gated by Tide policy | Under verification; where not yet verified the demo labels the step **SIMULATED** |
+| Guarantee | Designed to be enforced by | In this demo |
+| --- | --- | --- |
+| Login, roles, client-side encryption of identity | TideCloak (Tide Cybersecurity Fabric) | **SIMULATED** |
+| Server never receives plaintext identity | Browser runtime; server stores ciphertext only | **SIMULATED** |
+| Conflict-of-interest exclusion, N/T draw, quorum counting, council-change voting | VoiceVault app | **APP** |
+| Identity release gated by Tide policy | TideCloak policy | **SIMULATED** |
 
-Every error and audit event in the UI shows its source (APP, FABRIC, SIMULATED), so the demo never overclaims.
+On hackathon day, Tide's licensing service failed for new realms (confirmed by Tide as a server-side issue), so the Tide steps run in simulated form. Every error and audit event in the UI shows its source (APP, FABRIC, SIMULATED), so the demo never overclaims.
 
 ## Run locally
 ```bash
