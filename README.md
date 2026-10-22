@@ -1,4 +1,4 @@
-> **WIP integration handoff:** UI + backend đang được hợp nhất trên `master`; Tide LIVE chưa hoàn tất. Đọc [handoff chuyển máy](docs/integration/HANDOFF-2026-10-22.md) trước khi tiếp tục, gồm test đã chạy và các regression còn dở.
+> **Trạng thái dự án:** xem [PROJECT_STATUS.md](PROJECT_STATUS.md) để biết đã làm được gì, kết quả kiểm tra, việc còn lại và phân công. Tích hợp Tide LIVE vẫn đang WIP; [handoff gốc](docs/integration/HANDOFF-2026-10-22.md) được giữ làm bản ghi lịch sử.
 
 ## Run the current UI
 

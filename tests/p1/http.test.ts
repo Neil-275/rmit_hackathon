@@ -145,7 +145,7 @@ describe("HTTP service dispatch", () => {
     expect(getServices).not.toHaveBeenCalled();
   });
 
-  it.each(["/council-changes", "/council-changes/id/apply", "/ideas/id/endorsements"])("keeps unsupported operation %s unavailable", async (path) => {
+  it.each(["/council-changes", "/council-changes/id/apply"])("keeps unsupported operation %s unavailable", async (path) => {
     const response = await handler(request(path, { method: "POST", body: "{}" }));
     expect(response.status).toBe(503);
     expect((await response.json()).error.code).toBe("POLICY_UNAVAILABLE");

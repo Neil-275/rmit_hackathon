@@ -16,12 +16,19 @@ row under "In progress" and push before you begin, so nobody duplicates work.**
 1. Start TideCloak dev in Docker (`tideorg/tidecloak-dev`, named volume, loopback `:8080`) and run `init/tcinit.sh`.
    **Needs Tam:** first-admin enrollment in the browser and the real licence email (never a fake address).
 2. Real Tide `AuthAdapter` / `CryptoAdapter` for the LIVE bridge (`globalThis.VoiceVaultLiveConfig`); no stub defaults.
-3. API: idea endorsement (`ENDORSED` status) and council-change services — the UI already supports both in MOCK.
+3. API: council-change services — the UI already supports them in MOCK (endorsement landed on master `4cf9add`).
 4. Verify G1–G5 against real Tide; keep sensitive endpoints locked until each gate passes.
 5. Update `contract-reconciliation.md` and old status docs to match the integrated mapper (they predate it).
 6. Architecture docs still say Tam cannot run Node/Docker — Tam can; update `architecture_toi.md`.
 
 ## Done and pushed
+
+- **Claude** — merged latest `master` (`4cf9add`, manager endorsement + PROJECT_STATUS) into this branch.
+  Conflicts resolved keeping both sides' fixes: master's stricter unmask claim (`status: INVESTIGATING`) and voter
+  decisions; Codex's audit write **inside** the unmask transaction; bridge keeps master's default-locked crypto but
+  accepts an explicitly supplied adapter. Test updates: denial renders `has-denied` (not `has-voted`); LIVE
+  `canSubmit` stays false until provenance is verified (master decision). Checks on the merged tree: P0 **61/61**,
+  P1 **147/147**, P1 `tsc` ✓, bridge ✓, UI **65/65**, `npm run build` ✓.
 
 - **Claude** — production build is **green**: root `tsconfig.json` excludes `tests/` (P1 keeps its own tsconfig and
   type-check); production loads `config/roster.json` by static import, file loading moved to `roster-file.ts` for
@@ -45,7 +52,7 @@ row under "In progress" and push before you begin, so nobody duplicates work.**
 | Gap | Owner | Notes |
 | --- | --- | --- |
 | Real Tide adapters, enrollment, G1–G5 | Tam + Tung | Nothing in MOCK or APP tests proves enforcement |
-| Endorsement + council-change API | Free | UI must not fake them |
+| Council-change API | Free | UI must not fake it; endorsement is done on master |
 | HTTP encrypted submissions / envelope release | Locked on purpose | Until real policy/provenance exists |
 | Real Windows run of every suite | Free (needs a Windows machine) | Paths are portable; not executed on Windows yet |
 | "Binh changes the author → denied" demo | Tung (method) → UI (button) | Needs a contract method |

@@ -40,6 +40,7 @@ function fakeServer(svc: Services, calls: Call[]): typeof fetch {
       case "GET /ideas": result = await svc.listIdeas(actor!, q); break;
       case "POST /ideas": result = await svc.createIdea(actor!, body); break;
       case "GET /ideas/:id": result = await svc.getIdea(actor!, parts[1]); break;
+      case "POST /ideas/:id/endorse": result = await svc.endorseIdea(actor!, parts[1], body); break;
       case "POST /ideas/:id/decision": result = await svc.decideIdea(actor!, parts[1], body); break;
       case "GET /ideas/:id/identity-envelope": result = await svc.getIdeaIdentityEnvelope(actor!, parts[1]); break;
       case "GET /reports": result = await svc.listReports(actor!, q); break;
@@ -107,7 +108,7 @@ describe("shape runtime (chép từ tests/p0/mock-runtime.contract.test.mjs)", (
 
   it("method ngoài P1 trả POLICY_UNAVAILABLE / APP / không retry", async () => {
     const runtime = live("subject-an");
-    for (const name of ["endorseIdea", "submitCouncilChange", "applyCouncilChange", "listCouncilChanges"]) {
+    for (const name of ["submitCouncilChange", "applyCouncilChange", "listCouncilChanges"]) {
       const r = await call(runtime, name);
       expect(r).toMatchObject({ ok: false, error: { code: "POLICY_UNAVAILABLE", enforcement: "APP", retryable: false } });
     }
@@ -210,7 +211,8 @@ describe("luồng LIVE qua API", () => {
   it("director duyệt ý tưởng có consent rồi mở danh tính tác giả", async () => {
     const created = await call(live("subject-an"), "submitIdea", validIdea);
     const chi = live("subject-chi");
-    const decided = await call(chi, "decideIdea", created.data.id, { decision: "APPROVE", reason: "tốt", expectedVersion: 1 });
+    expect((await call(live("subject-binh"), "endorseIdea", created.data.id, 1)).data.status).toBe("ENDORSED");
+    const decided = await call(chi, "decideIdea", created.data.id, { decision: "APPROVE", reason: "tốt", expectedVersion: 2 });
     expect(decided.data.status).toBe("APPROVED");
     const revealed = await call(chi, "revealIdentity", "IDEA", created.data.id);
     expect(revealed.data).toMatchObject({ subject: "subject-an", displayName: "An" });

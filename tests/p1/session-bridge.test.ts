@@ -25,7 +25,8 @@ describe("session and bridge continuation", () => {
       fetch: async () => Response.json(ok({ ...identity, capabilities: ["submitIdea", "submitReport"] })) };
     expect(typeof globals.createVoiceVaultLiveRuntime).toBe("function");
     const runtime = globals.createVoiceVaultLiveRuntime();
-    expect(await runtime.init()).toMatchObject({ ok: true, data: { capabilities: { canSubmit: true } } });
+    // Submission stays locked in LIVE until ciphertext provenance is verified (master decision).
+    expect(await runtime.init()).toMatchObject({ ok: true, data: { capabilities: { canSubmit: false } } });
     expect(runtime.mode).toBe("LIVE");
     expect(runtime.simulation).toBeUndefined();
     expect(await runtime.revealIdentity("REPORT", "report", "round")).toMatchObject({ ok: false, error: { code: "POLICY_UNAVAILABLE" } });

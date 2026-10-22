@@ -9,6 +9,7 @@ const ROOT = path.resolve(__dirname, "../../..");
 
 export function createTempDb(): { prisma: PrismaClient; cleanup: () => Promise<void> } {
   const dir = mkdtempSync(path.join(tmpdir(), "voicevault-p1-"));
+  // Prisma's SQLite schema engine on Windows requires the database file to exist.
   writeFileSync(path.join(dir, "test.db"), "");
   const url = `file:${path.join(dir, "test.db").replace(/\\/g, "/")}`;
   execFileSync(process.execPath, [
