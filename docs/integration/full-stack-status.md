@@ -23,6 +23,14 @@ row under "In progress" and push before you begin, so nobody duplicates work.**
 
 ## Done and pushed
 
+- **Claude** — Simulated TideCloak, server side (`src/server/sim-tidecloak.ts`, `app/sim-tidecloak/{personas,token}`):
+  signs HS256 access tokens shaped like TideCloak's (`iss`, `azp`, `exp`, `iat`, `sub`, `organizationId`,
+  `realm_access.roles`); `verifySimulatedToken` has the same contract as `verifyTideCloakToken`, so actor extraction,
+  role checks, CoI and quorum are unchanged. Only on with `VOICEVAULT_AUTH_MODE=simulated` (routes 404 otherwise);
+  submissions/envelopes stay locked outside that mode. HTTP now dispatches `createIdea`, `createReport` and both
+  identity-envelope routes (they were never wired). Tests: forged roles, tampered signature, expiry, wrong
+  issuer/client, mode gating. P1 **152/152**.
+
 - **Claude** — demo data: `config/roster.json` now seats the spec council (Eva chair, Frank, Grace independent,
   Henry, Iris) and the story personas (An, Binh manager, Chi director, Dave it_admin, Mai) with a manager chain for
   CoI. The old placeholder moved to `tests/p1/fixtures/roster.json` so tests keep stable data. P1 **148/148**.

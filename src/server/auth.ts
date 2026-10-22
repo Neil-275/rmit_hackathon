@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fail, ok, type Actor, type ApiResult } from "../contracts/api";
+import { SIM_CONFIG, simulatedAuthEnabled, verifySimulatedToken } from "./sim-tidecloak";
 
 interface AuthDeps {
   readConfig: () => Promise<unknown>;
@@ -29,8 +30,11 @@ function usableConfig(value: unknown): value is Record<string, unknown> {
 }
 
 export function createAuthenticator(deps: Partial<AuthDeps> = {}) {
-  const readConfig = deps.readConfig ?? (async () => JSON.parse(await readFile(path.join(process.cwd(), "tidecloak.json"), "utf8")) as unknown);
-  const verifyToken = deps.verifyToken ?? (async (config, token) => {
+  // Simulated TideCloak replaces only the config and the verifier; actor and role handling below are unchanged.
+  const simulated = !deps.readConfig && !deps.verifyToken && simulatedAuthEnabled();
+  const readConfig = deps.readConfig ?? (simulated ? async () => SIM_CONFIG as unknown
+    : async () => JSON.parse(await readFile(path.join(process.cwd(), "tidecloak.json"), "utf8")) as unknown);
+  const verifyToken = deps.verifyToken ?? (simulated ? verifySimulatedToken : async (config, token) => {
     const { verifyTideCloakToken } = await import("@tidecloak/nextjs/server");
     return verifyTideCloakToken(config, token);
   });

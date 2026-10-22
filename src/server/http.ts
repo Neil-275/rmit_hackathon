@@ -1,5 +1,6 @@
 import { API_PREFIX, ERROR_HTTP_STATUS, ROUTES, fail, type Actor, type ApiResult, type ListQuery } from "../contracts/api";
 import { authenticate, isActor } from "./auth";
+import { simulatedAuthEnabled } from "./sim-tidecloak";
 import type { Services } from "./services";
 
 interface HttpDeps {
@@ -55,7 +56,9 @@ export function createHttpHandler(deps: Partial<HttpDeps> = {}) {
       // An APP vote/status cannot authorize cryptographic identity release. Also
       // block submissions until envelope provenance is verifiable: a TIDE_V1 tag,
       // ciphertext hash, or client-provided stub:base64 is not proof of encryption.
-      if (route.service.endsWith("IdentityEnvelope") || route.service === "createIdea" || route.service === "createReport") return json(unavailable());
+      // Simulated TideCloak mode opts in explicitly: its envelopes are labelled simulations, not Tide ciphertext.
+      const locked = route.service.endsWith("IdentityEnvelope") || route.service === "createIdea" || route.service === "createReport";
+      if (locked && !simulatedAuthEnabled()) return json(unavailable());
       let input: unknown;
       if (request.method === "POST") {
         try { input = await request.json(); } catch {
@@ -75,6 +78,10 @@ export function createHttpHandler(deps: Partial<HttpDeps> = {}) {
         case "getCouncil": result = await service.getCouncil(actor); break;
         case "listIdeas": result = await service.listIdeas(actor, query); break;
         case "getIdea": result = await service.getIdea(actor, id); break;
+        case "createIdea": result = await service.createIdea(actor, input); break;
+        case "createReport": result = await service.createReport(actor, input); break;
+        case "getIdeaIdentityEnvelope": result = await service.getIdeaIdentityEnvelope(actor, id); break;
+        case "getReportIdentityEnvelope": result = await service.getReportIdentityEnvelope(actor, id, url.searchParams.get("votingRequestId") ?? ""); break;
         case "endorseIdea": result = await service.endorseIdea(actor, id, input); break;
         case "decideIdea": result = await service.decideIdea(actor, id, input); break;
         case "listReports": result = await service.listReports(actor, query); break;
@@ -86,7 +93,7 @@ export function createHttpHandler(deps: Partial<HttpDeps> = {}) {
         case "listAudit": result = await service.listAudit(actor, query); break;
         default: return json(unavailable());
       }
-      return json(result, route.service === "createUnmaskRequest" ? 201 : 200);
+      return json(result, ["createUnmaskRequest", "createIdea", "createReport"].includes(route.service) ? 201 : 200);
     } catch {
       return json(fail("POLICY_UNAVAILABLE", "Service is temporarily unavailable", { retryable: true }));
     }
