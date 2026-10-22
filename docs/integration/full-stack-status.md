@@ -9,6 +9,7 @@ row under "In progress" and push before you begin, so nobody duplicates work.**
 | Item | Who | Started | Files |
 | --- | --- | --- | --- |
 | Mac + Windows runbook (setup, tests, build, run) linked from README; portable full UI test command | Claude (for Tam) | 2026-10-22 | `docs/RUNBOOK.md`, `README.md`, `package.json` scripts |
+| Localhost-only DEV auth (env-gated, never in production) so BE + FE + SQLite data run end-to-end without Tide; then live browser test with Tam watching | Claude (for Tam) | 2026-10-22 | `src/server/auth.ts`, `src/integration/**`, `public/integration/**`, seed data |
 
 ## Next — free to claim (in this order)
 
