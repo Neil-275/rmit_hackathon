@@ -4,9 +4,20 @@
   "private": true,
   "scripts": {
     "test:p0": "node --test tests/p0/",
-    "test:ui:file": "node --test tests/p0/ui-file.smoke.test.mjs"
+    "test:ui:file": "node --test tests/p0/ui-file.smoke.test.mjs",
+    "test:p1": "vitest run --config tests/p1/vitest.config.mjs",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "build:bridge": "node scripts/build-bridge.mjs"
   },
   "devDependencies": {
-    "jsdom": "26.1.0"
+    "esbuild": "0.25.9",
+    "jsdom": "26.1.0",
+    "prisma": "6.19.0",
+    "vitest": "3.2.4"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.0"
   }
 }
