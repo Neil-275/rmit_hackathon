@@ -7,6 +7,9 @@ import { PATHS, readSource } from "./helpers/env.mjs";
 const EXPECTED_SCRIPTS = [
   "../integration/contract-fixtures.js",
   "./mock-runtime.js",
+  "./views/helpers.js",
+  "./views/dialogs.js",
+  "./views/pages.js",
   "./app.js",
   "../integration/bootstrap.js",
 ];

@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { PATHS, ROOT, readSource } from "./helpers/env.mjs";
 
-const CLASSIC_FILES = [PATHS.fixtures, PATHS.bootstrap, PATHS.mock, PATHS.app];
+const CLASSIC_FILES = [PATHS.fixtures, PATHS.bootstrap, PATHS.mock, PATHS.helpers, PATHS.dialogs, PATHS.pages, PATHS.app];
 const rel = (file) => path.relative(ROOT, file);
 
 for (const file of CLASSIC_FILES) {

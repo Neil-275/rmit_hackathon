@@ -14,7 +14,7 @@ const fixturesSource = JSON.parse(JSON.stringify((() => {
 
 const okSession = (authenticated) => ({
   ok: true,
-  data: { authenticated, displayName: authenticated ? "An" : null, roles: [], capabilities: [] },
+  data: { authenticated, subject: authenticated ? "an" : null, displayName: authenticated ? "An" : "Signed out", role: "employee", capabilities: { canSubmit: authenticated } },
   requestId: "req-test",
   contractVersion: CONTRACT_VERSION,
 });
@@ -55,16 +55,17 @@ function setup(url, options = {}) {
   const liveRuntime = options.liveRuntime ?? fakeRuntime("LIVE");
   const loadScript = options.loadScript ?? (async (src) => {
     events.push({ type: "loadScript", src });
-    window.createVoiceVaultLive = (opts) => {
-      events.push({ type: "createLive", opts });
+    window.createVoiceVaultLiveRuntime = (...args) => {
+      events.push({ type: "createLive", args });
       return liveRuntime;
     };
   });
 
   if (options.withUI !== false) {
     window.VoiceVaultUI = {
-      mount: (runtime) => {
+      mount: async (runtime) => {
         events.push({ type: "mount", runtime, initCalledBefore: runtime.calls?.includes("init") });
+        await runtime.init();
       },
     };
   }
@@ -92,13 +93,14 @@ function assertNoMount(ctx) {
 
 test("expose VoiceVaultBootstrap v1 và không tự chạy khi autoStart=false", async () => {
   const ctx = setup(FILE_URL);
+  assert.ok(ctx.window.VoiceVaultBootstrap, "bootstrap must expose its public startup controller");
   assert.equal(ctx.window.VoiceVaultBootstrap.contractVersion, CONTRACT_VERSION);
   assert.equal(typeof ctx.window.VoiceVaultBootstrap.run, "function");
   await new Promise((r) => setTimeout(r, 20));
   assert.equal(ctx.of("mount").length, 0);
 });
 
-test("file://: tạo mock từ fixtures, init rồi mount một lần, không tải LIVE bundle", async () => {
+test("file://: mount owns init exactly once and never loads the LIVE bundle", async () => {
   const ctx = setup(FILE_URL);
   const result = await ctx.run();
   assert.equal(result.state, "mounted");
@@ -112,7 +114,8 @@ test("file://: tạo mock từ fixtures, init rồi mount một lần, không t�
   const mounts = ctx.of("mount");
   assert.equal(mounts.length, 1);
   assert.equal(mounts[0].runtime, ctx.mockRuntime);
-  assert.ok(mounts[0].initCalledBefore, "init phải chạy trước mount");
+  assert.equal(mounts[0].initCalledBefore, false, "bootstrap must leave init to UI.mount");
+  assert.deepEqual(ctx.mockRuntime.calls, ["init"]);
 
   assert.equal(ctx.of("loadScript").length, 0);
   assert.equal(ctx.networkCalls, 0);
@@ -173,7 +176,9 @@ test("HTTP: tải runtime.generated.js, tạo LIVE và mount, không đụng moc
   const mounts = ctx.of("mount");
   assert.equal(mounts.length, 1);
   assert.equal(mounts[0].runtime, ctx.liveRuntime);
-  assert.ok(mounts[0].initCalledBefore);
+  assert.equal(mounts[0].initCalledBefore, false);
+  assert.deepEqual(ctx.liveRuntime.calls, ["init"]);
+  assert.deepEqual(ctx.of("createLive")[0].args, [], "factory uses the agreed zero-argument adapter wrapper");
   assert.equal(html(ctx.window).getAttribute("data-vv-mode"), "LIVE");
 });
 
@@ -194,19 +199,20 @@ test("HTTP: tải bundle lỗi thì báo LIVE_RUNTIME_UNAVAILABLE, không fallba
   assert.match(alertText(ctx.window), /LIVE_RUNTIME_UNAVAILABLE/);
 });
 
-test("HTTP: bundle tải xong nhưng không định nghĩa createVoiceVaultLive", async () => {
+test("HTTP: bundle without createVoiceVaultLiveRuntime fails closed", async () => {
   const ctx = setup(LIVE_URL, { loadScript: async () => {} });
   const result = await ctx.run();
   assert.equal(result.error?.code, "LIVE_RUNTIME_UNAVAILABLE");
   assertNoMount(ctx);
 });
 
-test("HTTP: init LIVE throw thì báo LIVE_RUNTIME_UNAVAILABLE, không mount", async () => {
+test("HTTP: init failure inside mount reports LIVE_RUNTIME_UNAVAILABLE without fallback", async () => {
   const live = fakeRuntime("LIVE", { init: async () => { throw new Error("issuer sai"); } });
   const ctx = setup(LIVE_URL, { liveRuntime: live });
   const result = await ctx.run();
   assert.equal(result.error?.code, "LIVE_RUNTIME_UNAVAILABLE");
-  assertNoMount(ctx);
+  assert.equal(ctx.of("mount").length, 1);
+  assert.equal(ctx.of("createMock").length, 0);
 });
 
 test("HTTP: chưa đăng nhập vẫn mount, không tự gọi login (tránh vòng lặp redirect)", async () => {

@@ -1,3 +1,5 @@
+> **WIP integration handoff:** UI + backend đang được hợp nhất trên `master`; Tide LIVE chưa hoàn tất. Đọc [handoff chuyển máy](docs/integration/HANDOFF-2026-10-22.md) trước khi tiếp tục, gồm test đã chạy và các regression còn dở.
+
 ## Run the current UI
 
 Open [public/ui/index.html](public/ui/index.html) directly in Chrome/Edge; Next.js and Docker are unnecessary.

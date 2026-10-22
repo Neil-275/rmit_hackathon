@@ -3,7 +3,7 @@
 // Contract v1 mà các test khóa lại:
 //   window.VoiceVaultFixtures          contract-fixtures.js (Tùng), dữ liệu giả, deep-frozen
 //   window.createVoiceVaultMock(fx)    mock-runtime.js (UI), trả runtime mode=MOCK
-//   window.createVoiceVaultLive(opts)  runtime.generated.js (Tùng), chỉ HTTP(S)
+//   window.createVoiceVaultLiveRuntime() runtime.generated.js (Tùng), chỉ HTTP(S)
 //   window.VoiceVaultUI.mount(runtime) app.js (UI), bootstrap gọi đúng một lần
 //   window.VoiceVaultBootstrap         bootstrap.js (Tùng): { contractVersion, run(options), ready? }
 //   window.VoiceVaultBootstrapConfig   { autoStart: false } chỉ để test tắt auto-run
@@ -20,6 +20,9 @@ export const PATHS = {
   bootstrap: path.join(ROOT, "public/integration/bootstrap.js"),
   mock: path.join(ROOT, "public/ui/mock-runtime.js"),
   app: path.join(ROOT, "public/ui/app.js"),
+  helpers: path.join(ROOT, "public/ui/views/helpers.js"),
+  dialogs: path.join(ROOT, "public/ui/views/dialogs.js"),
+  pages: path.join(ROOT, "public/ui/views/pages.js"),
   index: path.join(ROOT, "public/ui/index.html"),
 };
 
@@ -30,9 +33,9 @@ export const CONTRACT_VERSION = "v1";
 
 export const RUNTIME_METHODS = [
   "init", "getSession", "login", "logout",
-  "listIdeas", "getIdea", "submitIdea", "endorseIdea", "decideIdea",
-  "listReports", "getReport", "submitReport", "getDirectory",
-  "createUnmaskRequest", "listMyVotingRequests", "getVotingRequest", "castVote",
+  "listIdeas", "submitIdea", "endorseIdea", "decideIdea",
+  "listReports", "submitReport", "getDirectory",
+  "createUnmaskRequest", "getVotingRequest", "castVote",
   "getCouncil", "listCouncilChanges", "submitCouncilChange", "applyCouncilChange",
   "revealIdentity", "listAudit",
 ];

@@ -4,20 +4,27 @@
   "private": true,
   "scripts": {
     "ensure-config": "node -e \"const f=require('fs');f.existsSync('tidecloak.json')||f.writeFileSync('tidecloak.json','{}\\n')\"",
-    "predev": "npm run ensure-config",
+    "predev": "npm run ensure-config && npm run db:generate && npm run build:bridge",
     "dev": "next dev",
-    "prebuild": "npm run ensure-config",
+    "prebuild": "npm run ensure-config && npm run db:generate && npm run build:bridge",
     "build": "next build",
     "start": "next start",
     "init": "bash init/tcinit.sh",
-    "test:p0": "node --test tests/p0/",
-    "test:ui:file": "node --test tests/p0/ui-file.smoke.test.mjs"
+    "test:p0": "node --test \"tests/p0/*.test.mjs\"",
+    "test:ui:file": "node --test tests/p0/ui-file.smoke.test.mjs",
+    "test:p1": "vitest run --config tests/p1/vitest.config.mjs",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "build:bridge": "node scripts/build-bridge.mjs",
+    "test:ui": "node --test public/ui/tests/runtime.test.cjs"
   },
   "dependencies": {
     "@tidecloak/nextjs": "0.13.33",
     "next": "16.4.2",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "@prisma/client": "6.19.0"
   },
   "overrides": {
     "postcss": "^8.5.25",
@@ -27,6 +34,9 @@
     "@types/node": "24.0.13",
     "@types/react": "19.1.8",
     "jsdom": "26.1.0",
-    "typescript": "5.8.3"
+    "typescript": "5.8.3",
+    "esbuild": "0.25.9",
+    "prisma": "6.19.0",
+    "vitest": "3.2.4"
   }
 }

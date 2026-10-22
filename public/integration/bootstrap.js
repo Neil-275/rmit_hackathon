@@ -1,36 +1,73 @@
-/* Minimal baseline owned by Tung. No LIVE implementation or credentials are included. */
+/* Classic-script handoff: local files simulate; HTTP(S) requires the LIVE adapter. */
 (function(global){
   'use strict';
+  var pending;
+  function fail(code){throw new Error(code);}
   function problem(code){
     document.body.dataset.appState='error';
-    var root=document.getElementById('app');root.replaceChildren();
-    var box=document.createElement('section');box.className='startup error';
+    var root=document.getElementById('app')||document.body;
+    root.replaceChildren();
+    var box=document.createElement('section');box.className='startup error';box.setAttribute('role','alert');
     var h=document.createElement('h1');h.textContent='Connection unavailable';
-    var p=document.createElement('p');p.textContent=code==='CONTRACT_MISMATCH'?'The interface and runtime use different contract versions. Update them from the same handoff.':'The LIVE runtime is unavailable. Open the HTML file directly for the simulation, or wait for the system connection to be configured.';
+    var p=document.createElement('p');p.textContent=code==='CONTRACT_MISMATCH'?'The interface and runtime use different contract versions. Update them from the same handoff.':'The runtime could not open the workspace. Check the connection and runtime configuration.';
     var badge=document.createElement('code');badge.textContent=code;
     box.append(h,p,badge);root.appendChild(box);
   }
-  async function start(){
-    try{
-      if(!global.VoiceVaultUI)throw new Error('CONTRACT_MISMATCH');
-      var runtime;
-      if(global.location.protocol==='file:'){
-        if(!global.VoiceVaultFixtures||global.VoiceVaultFixtures.contractVersion!=='v1'||typeof global.createVoiceVaultMock!=='function')throw new Error('CONTRACT_MISMATCH');
-        runtime=global.createVoiceVaultMock(global.VoiceVaultFixtures);
-      }else{
-        await new Promise(function(resolve,reject){
-          var script=document.createElement('script'),timer=setTimeout(function(){reject(new Error('POLICY_UNAVAILABLE'));},10000);
-          script.src=new URL('../integration/runtime.generated.js',global.location.href).href;
-          script.onload=function(){clearTimeout(timer);resolve();};script.onerror=function(){clearTimeout(timer);reject(new Error('POLICY_UNAVAILABLE'));};document.head.appendChild(script);
-        });
-        if(typeof global.createVoiceVaultLiveRuntime!=='function')throw new Error('POLICY_UNAVAILABLE');
-        runtime=await global.createVoiceVaultLiveRuntime();
-        if(!runtime||runtime.mode!=='LIVE')throw new Error('CONTRACT_MISMATCH');
+  function loadScript(src){
+    return new Promise(function(resolve,reject){
+      var script=document.createElement('script');
+      var timer=setTimeout(function(){finish(new Error('LIVE_RUNTIME_UNAVAILABLE'));},10000);
+      function finish(error){
+        clearTimeout(timer);script.onload=null;script.onerror=null;
+        if(error){script.remove();reject(error);}else resolve();
       }
-      if(runtime.contractVersion!=='v1')throw new Error('CONTRACT_MISMATCH');
-      global.VoiceVaultRuntime=runtime;
-      await global.VoiceVaultUI.mount(runtime);
-    }catch(error){problem(error.message==='CONTRACT_MISMATCH'?'CONTRACT_MISMATCH':'POLICY_UNAVAILABLE');}
+      script.src=src;script.onload=function(){finish();};
+      script.onerror=function(){finish(new Error('LIVE_RUNTIME_UNAVAILABLE'));};
+      document.head.appendChild(script);
+    });
   }
-  start();
+  async function start(options){
+    var mode=null;
+    var html=document.documentElement;
+    html.dataset.vvState='loading';
+    try{
+      var protocol=global.location.protocol;
+      if(protocol!=='file:'&&protocol!=='http:'&&protocol!=='https:')fail('UNSUPPORTED_ORIGIN');
+      mode=protocol==='file:'?'MOCK':'LIVE';html.dataset.vvMode=mode;
+      if(!global.VoiceVaultUI||typeof global.VoiceVaultUI.mount!=='function')fail('UI_UNAVAILABLE');
+      var runtime;
+      if(mode==='MOCK'){
+        if(!global.VoiceVaultFixtures||global.VoiceVaultFixtures.contractVersion!=='v1')fail('CONTRACT_MISMATCH');
+        if(typeof global.createVoiceVaultMock!=='function')fail('MOCK_RUNTIME_UNAVAILABLE');
+        runtime=await global.createVoiceVaultMock(global.VoiceVaultFixtures);
+      }else{
+        try{await (options.loadScript||loadScript)(new URL('../integration/runtime.generated.js',global.location.href).href);}
+        catch(error){fail('LIVE_RUNTIME_UNAVAILABLE');}
+        if(typeof global.createVoiceVaultLiveRuntime!=='function')fail('LIVE_RUNTIME_UNAVAILABLE');
+        runtime=await global.createVoiceVaultLiveRuntime();
+      }
+      if(!runtime||runtime.contractVersion!=='v1')fail('CONTRACT_MISMATCH');
+      if(runtime.mode!==mode)fail('RUNTIME_MODE_MISMATCH');
+      global.VoiceVaultRuntime=runtime;
+      // mount owns init(), including its ApiResult/error presentation.
+      await global.VoiceVaultUI.mount(runtime);
+      if(document.body.dataset.appState==='error'){
+        var badge=document.querySelector('#app .startup.error code');
+        fail(badge?badge.textContent:'CONTRACT_MISMATCH');
+      }
+      html.dataset.vvState='mounted';
+      return {state:'mounted',mode:mode,error:null};
+    }catch(error){
+      var candidate=error&&(error.code||error.message);
+      var code=typeof candidate==='string'&&/^[A-Z][A-Z0-9_]+$/.test(candidate)?candidate:(mode==='MOCK'?'MOCK_RUNTIME_UNAVAILABLE':'LIVE_RUNTIME_UNAVAILABLE');
+      html.dataset.vvState='error';problem(code);
+      return {state:'error',mode:mode,error:{code:code}};
+    }
+  }
+  var bootstrap={contractVersion:'v1',ready:null,run:function(options){
+    if(!pending){pending=start(options||{});bootstrap.ready=pending;}
+    return pending;
+  }};
+  global.VoiceVaultBootstrap=bootstrap;
+  if(!global.VoiceVaultBootstrapConfig||global.VoiceVaultBootstrapConfig.autoStart!==false)bootstrap.run();
 }(window));

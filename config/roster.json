@@ -1,0 +1,30 @@
+{
+  "_comment": "Placeholder P1. Subject sẽ được thay bằng subject Tide thật. Directory id trùng subject để CoI so khớp được với council.",
+  "organizationId": "org-demo",
+  "policyVersion": "p1-app-enforced",
+  "council": {
+    "version": 1,
+    "selectionPolicy": { "minVoters": 3, "maxVoters": 5 },
+    "members": [
+      { "subject": "subject-juror-1", "displayName": "Juror 1", "membershipRole": "CHAIR", "independent": false, "active": true },
+      { "subject": "subject-juror-2", "displayName": "Juror 2", "membershipRole": "MEMBER", "independent": false, "active": true },
+      { "subject": "subject-juror-3", "displayName": "Juror 3", "membershipRole": "MEMBER", "independent": true, "active": true }
+    ]
+  },
+  "personas": [
+    { "subject": "subject-an", "displayName": "An", "roles": ["employee"] },
+    { "subject": "subject-binh", "displayName": "Bình", "roles": ["employee", "manager"] },
+    { "subject": "subject-chi", "displayName": "Chi", "roles": ["employee", "director"] },
+    { "subject": "subject-juror-1", "displayName": "Juror 1", "roles": ["employee"] },
+    { "subject": "subject-juror-2", "displayName": "Juror 2", "roles": ["employee"] },
+    { "subject": "subject-juror-3", "displayName": "Juror 3", "roles": ["employee"] }
+  ],
+  "directory": [
+    { "id": "subject-an", "displayName": "An", "managerId": "subject-binh" },
+    { "id": "subject-binh", "displayName": "Bình", "managerId": "subject-chi" },
+    { "id": "subject-chi", "displayName": "Chi", "managerId": null },
+    { "id": "subject-juror-1", "displayName": "Juror 1", "managerId": "subject-chi" },
+    { "id": "subject-juror-2", "displayName": "Juror 2", "managerId": "subject-chi" },
+    { "id": "subject-juror-3", "displayName": "Juror 3", "managerId": null }
+  ]
+}

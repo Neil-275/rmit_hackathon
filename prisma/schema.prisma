@@ -1,0 +1,107 @@
+// VoiceVault P1. SQLite một instance. Không có cột người nộp ở Idea/Report.
+// identityEnvelope lưu nguyên JSON envelope như chuỗi mờ; server không giải mã.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Idea {
+  id                      String    @id
+  organizationId          String
+  contentVersion          Int
+  title                   String
+  description             String
+  category                String
+  contentHash             String
+  publishCreditOnApproval Boolean
+  identityEnvelope        String
+  ciphertextHash          String
+  policyVersion           String
+  status                  String
+  version                 Int       @default(1)
+  decisionReason          String?
+  decidedAt               DateTime?
+  createdAt               DateTime  @default(now())
+
+  @@index([organizationId, createdAt])
+}
+
+model Report {
+  id                String   @id
+  organizationId    String
+  contentVersion    Int
+  title             String
+  evidenceDetails   String
+  accusedJson       String
+  contentHash       String
+  identityEnvelope  String
+  ciphertextHash    String
+  policyVersion     String
+  status            String
+  version           Int      @default(1)
+  councilVersion    Int
+  councilRosterHash String
+  // Assignment bốc một lần lúc nộp: { voterCount, quorumRequired, voters: [{ id, independent }] } hoặc null.
+  assignmentJson    String?
+  excludedJson      String
+  votingRequestId   String?
+  createdAt         DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+}
+
+model VotingRequest {
+  id                String   @id
+  organizationId    String
+  operation         String
+  resourceKind      String
+  resourceId        String
+  state             String
+  version           Int      @default(1)
+  voterCount        Int
+  quorumRequired    Int
+  votersJson        String
+  councilVersion    Int
+  councilRosterHash String
+  recipientSubject  String
+  purpose           String
+  nonce             String
+  expiresAt         DateTime
+  createdAt         DateTime @default(now())
+  votes             Vote[]
+
+  @@index([organizationId, resourceKind, resourceId])
+}
+
+model Vote {
+  id              Int           @id @default(autoincrement())
+  votingRequestId String
+  voterSubject    String
+  decision        String
+  reason          String
+  createdAt       DateTime      @default(now())
+  votingRequest   VotingRequest @relation(fields: [votingRequestId], references: [id])
+
+  @@unique([votingRequestId, voterSubject])
+}
+
+model AuditEvent {
+  id             String   @id
+  organizationId String
+  action         String
+  resourceKind   String?
+  resourceId     String?
+  source         String
+  result         String
+  // Chỉ ghi actor cho thao tác của director/juror/recipient; không bao giờ ghi người nộp.
+  actorSubject   String?
+  requestId      String?
+  occurredAt     DateTime @default(now())
+
+  @@index([organizationId, occurredAt])
+}
