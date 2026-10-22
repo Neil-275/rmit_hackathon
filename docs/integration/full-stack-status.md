@@ -10,6 +10,8 @@ Read [Codex to Claude handoff](HANDOFF-CODEX-2026-10-22.md) before continuing.
 - Verified full P0 61/61, P1 124/124 and dedicated P1 type-check.
 
 ## In progress / WIP preserved
+- **Claude (claimed 2026-10-22, continuing from the handoff):** finishing session WIP, then code-review findings,
+  root TS build, Mac/Windows runbook. Do not pick these up in parallel.
 - Session outage and authentication feedback: app.js + browser.test.cjs.
 - Latest UI WIP: 62/63; one test-expression syntax error remains.
 - Review native replaceChildren(..., null) in the new unavailable identity branch.
