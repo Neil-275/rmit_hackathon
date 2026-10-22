@@ -57,4 +57,12 @@ describe("bootstrap LIVE factory", () => {
     vi.stubGlobal("fetch", async () => new Response("Not found", { status: 404 }));
     await expect(factory()).rejects.toThrow("POLICY_UNAVAILABLE");
   });
+
+  it("passes the server's reveal capability through only in simulated mode", async () => {
+    const { createVoiceVaultUIRuntime: wrap } = await import("../../src/integration/ui-runtime");
+    const round = { id: "r", resourceId: "rep", operation: "REVEAL_REPORT_IDENTITY", state: "READY", voters: [], voterCount: 3, quorumRequired: 2, validApprovals: 2, independentApproved: true, capabilities: ["revealIdentity"], recipientSubject: "subject-frank" };
+    const core = { contractVersion: "v1", mode: "LIVE", getVotingRequest: async () => ok(round) };
+    expect(await wrap(core).getVotingRequest("r")).toMatchObject({ ok: true, data: { canReveal: false } });
+    expect(await wrap(core, { simulatedTide: true }).getVotingRequest("r")).toMatchObject({ ok: true, data: { canReveal: true } });
+  });
 });

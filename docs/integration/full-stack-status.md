@@ -23,6 +23,12 @@ row under "In progress" and push before you begin, so nobody duplicates work.**
 
 ## Done and pushed
 
+- **Claude** — end-to-end run on the integrated app (Next + API + SQLite + Simulated TideCloak), observed in Chrome:
+  sign-in page → Chi sees 7 seeded ideas and 4 reports; director "View author" opens the approved idea's envelope;
+  Frank (designated recipient) opens a READY report round. Server-side denials checked over HTTP: Chi, Binh and a
+  juror who voted get `FORBIDDEN` on the report envelope; Dave sees 0 reports; a token with a forged director role
+  gets `UNAUTHENTICATED`. Fixed: round `canReveal` now follows the server capability in simulated mode. P1 **156/156**.
+
 - **Claude** — demo seed `npm run seed:demo` (`scripts/seed-demo.ts`): 7 ideas (under review / endorsed / approved
   with and without credit / rejected) and 4 reports (jury collecting, READY, DENIED, awaiting eligible jury) created
   **through the HTTP API** with Simulated TideCloak tokens, so every record passes auth, roles, CoI, hashing, audit.
@@ -82,4 +88,5 @@ row under "In progress" and push before you begin, so nobody duplicates work.**
 | Real Windows run of every suite | Free (needs a Windows machine) | Paths are portable; not executed on Windows yet |
 | "Binh changes the author → denied" demo | Tung (method) → UI (button) | Needs a contract method |
 | Pagination beyond 50, new request after DENIED/EXPIRED | Both | Not agreed in the contract |
+| Server error messages are Vietnamese while the UI is English | Core | e.g. "chỉ recipient đã được vote mới mở được" |
 | Merge into `master` | Team decision | Never merge implicitly |

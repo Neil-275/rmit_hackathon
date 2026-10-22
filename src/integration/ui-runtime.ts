@@ -74,7 +74,7 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource, options: { simula
       voters, voterCount: value.voterCount, quorumRequired: value.quorumRequired,
       approvalCount: value.validApprovals, validApprovals, independentApproved: value.independentApproved,
       councilVersion: value.councilVersion, expiresAt: value.expiresAt, recipientSubject: value.recipientSubject, purpose: value.purpose,
-      canVote: cap.includes("vote"), canReveal: false,
+      canVote: cap.includes("vote"), canReveal: simulated && cap.includes("revealIdentity"),
     };
   }
   async function report(data: unknown) {
