@@ -2,7 +2,8 @@
 
 > Phạm vi: Sealed-Credited Ideas + Protected Reports, RMIT Hackathon — UNLOCKED.
 > Trạng thái: bản thiết kế để triển khai. Repository hiện chưa có ứng dụng, script hay kiểm thử tích hợp; các đường dẫn và endpoint bên dưới là đầu ra cần tạo.
-> Cách dùng: hai người đọc mục 1–5 cùng nhau, tạo baseline rồi làm theo phân công A/B. Quy trình merge và chạy chung ở mục 12–14.
+> Cách dùng: bạn đọc [architecture_toi.md](./architecture_toi.md), Tùng đọc [architecture_tung.md](./architecture_tung.md); tài liệu này giữ contract và quy tắc nghiệp vụ/bảo mật chung.
+> Ràng buộc đã xác nhận: máy bạn không chạy Next.js/Docker; máy Tùng chạy được cả hai. Bạn làm static UI, Tùng làm platform và browser runtime. A = bạn, B = Tùng trong các luồng dưới.
 > Tài liệu này thay thiết kế kỹ thuật cũ. Trước nộp bài phải đối chiếu README/Idea.MD với kết quả thực tế, không giữ các cam kết mạnh hơn bằng chứng đã có.
 
 ## Mục lục
@@ -29,12 +30,12 @@
 
 | Chủ đề | Quyết định |
 | --- | --- |
-| Phân công | A: UI + browser crypto. B: API + DB + IAM/policy + điều phối tích hợp |
-| Kiến trúc | Một Next.js App Router + TypeScript ở root repository, không hai scaffold/backend riêng |
+| Phân công | Bạn: HTML/CSS/JS UI + mock + manual QA. Tùng: Next.js/Docker/API/DB/IAM/policy, browser crypto/runtime, build/test/merge |
+| Kiến trúc | Next.js phục vụ API và static UI trong public/ui; không buộc UI dùng React/TSX, không scaffold hai ứng dụng riêng |
 | Database | SQLite + Prisma; bỏ JSON store để thống nhất transaction/migration |
 | Phiên bản | Pin bản Next.js/React/SDK đã scaffold và smoke test thành công; không giữ “14+” mơ hồ |
 | ORM cho hướng dẫn này | Prisma CLI và @prisma/client cùng 6.19.0; nâng major là thay đổi baseline riêng |
-| Contract | DTO/schema/fixture v1 dùng chung, validate runtime |
+| Contract | DTO/schema v1 phía Tùng; UI dùng runtime interface v1 và fixture JS sinh từ nguồn chung, không import TypeScript |
 | Danh sách hội đồng | Chốt roster có version ngay khởi tạo; mọi thay đổi sau đó phải qua vote |
 | Người được vote | Bốc ngẫu nhiên cả số lượng N và N người từ roster hiện hành sau lọc CoI; mặc định N từ 3 tới min(5, eligibleCount) |
 | Ngưỡng thông qua | T = ceil(2 × N / 3) APPROVE khác người, có ít nhất một independent approver |
@@ -53,10 +54,10 @@ Phạm vi này thay phần MVP cũ chỉ chọn Credited trong Idea.MD. Cả hai
 
 | Gate | Cần chứng minh | Owner | Chưa đạt |
 | --- | --- | --- | --- |
-| G1 | An mã hóa, recipient khác mở được qua cơ chế chia sẻ thực sự được hỗ trợ | A + B | Khóa reveal, ghi cross-user chưa được hỗ trợ |
+| G1 | An mã hóa, recipient khác mở được qua cơ chế chia sẻ thực sự được hỗ trợ | Tùng thực hiện, bạn review UX | Khóa reveal, ghi cross-user chưa được hỗ trợ |
 | G2 | Có role vẫn không mở được hồ sơ chưa duyệt/đã từ chối bằng lời gọi trực tiếp | B | Không cấp decrypt role rộng để lách |
 | G3 | Approval/grant cho phản ánh và đổi hội đồng gắn đúng resource/payload, roster version, N/T, assignment, recipient, expiry và policy | B | Row phiếu chỉ hiển thị tiến độ, chưa cấp quyền mật mã |
-| G4 | Proof chứng minh tác giả xác thực, không chỉ tên tự khai trong JSON | A + B | Không hiển thị “Cryptographically Verified” |
+| G4 | Proof chứng minh tác giả xác thực, không chỉ tên tự khai trong JSON | Tùng thực hiện, bạn review hiển thị | Không hiển thị “Cryptographically Verified” |
 | G5 | QEA và policy không cho đổi roster/quyền trực tiếp, tái bootstrap hoặc áp thay đổi chưa có vote hợp lệ | B | Giới hạn cam kết, ghi rõ đường chưa kiểm chứng |
 
 Mỗi gate ghi PASS/FAIL/NOT RUN, test case, version và request ID không nhạy cảm. Modal đỏ không thay bằng chứng thao tác thật.
@@ -65,12 +66,12 @@ Mỗi gate ghi PASS/FAIL/NOT RUN, test case, version và request ID không nhạ
 
 ~~~mermaid
 flowchart LR
-    U[Người dùng] --> C[A: UI + browser crypto]
-    C -->|JWT + DTO v1 + ciphertext| S[B: API + domain services]
+    U[Người dùng] --> C[Browser: UI của bạn + runtime của Tùng]
+    C -->|JWT + DTO v1 + ciphertext| S[Tùng: API + domain services]
     S --> D[(SQLite)]
     C <--> T[TideCloak SDK / IAM]
     T <--> F[Fabric + policy]
-    S --> P[B: Policy adapter]
+    S --> P[Tùng: Policy adapter]
     P -->|Yêu cầu và bằng chứng| F
     F -->|Kết quả theo phiên hợp lệ| C
 ~~~
@@ -96,88 +97,83 @@ Giới hạn phải công bố:
 
 ## 3. Phân công và quyền sở hữu file
 
-| Người | Việc tự chủ | Đầu ra bàn giao |
+| Người | Sở hữu | Không yêu cầu trên máy này |
 | --- | --- | --- |
-| A — UI/client | Shell, portal, màn hình hội đồng/đề xuất đổi roster và VotePanel dùng chung, API client, browser SDK adapter, UX lỗi, test UI/E2E | UI theo DTO v1, wrapper đúng SDK, không persist plaintext, kết quả probe G1 |
-| B — server/integration | Contract, auth, API/service, Prisma, council roster/change vote, directory/CoI/random N/jury, policy adapter, QEA, CI | Endpoint thật, migration, fixture, proof/deny, kết quả G2/G3/G5, integration chạy được |
-| Cùng làm | Baseline, cross-user probe, origin proof, bypass tests, review demo | Quyết định có bằng chứng và contract thống nhất |
+| Bạn / A | public/ui: HTML/CSS/JS classic, asset local, mock runtime, manual QA và demo | Không Node/npm/Next/Docker/Prisma/SDK/test runner |
+| Tùng / B | Next host/API, DB, browser LIVE runtime, SDK bridge, bootstrap, contract/fixture, policy/QEA, build/CI/tests/merge | Không bắt UI chuyển React khi tích hợp |
+| Cùng review | Runtime interface, view/fixture, N/T/state UX, kết quả gates | Bạn review qua browser/mock và bằng chứng LIVE do Tùng cung cấp |
 
-B điều phối merge, A review tác động tới client và kết quả tích hợp. Nếu policy là nút thắt, A hỗ trợ thử bằng phiên browser thật sau khi UI skeleton xong.
+Quy trình đầy đủ từng người nằm ở [file của bạn](./architecture_toi.md) và [file của Tùng](./architecture_tung.md).
 
 ### 3.1. Cấu trúc đích
 
 ~~~text
 repository-root/
-├── voicevault_technical_architecture.md       B điều phối thay đổi đã thống nhất
-├── package.json, package-lock.json           B: single writer
-├── .env.example, .gitignore, .github/         B
-├── next.config.*, tsconfig.*, eslint.*       B
-├── prisma/                                  B
-│   ├── schema.prisma, seed.ts, migrations/
-│   └── local/                               DB local, gitignored
-├── config/                                  B: cấu hình mẫu không bí mật
+├── architecture_toi.md / architecture_tung.md
+├── voicevault_technical_architecture.md      contract/nghiệp vụ chung, Tùng điều phối
+├── public/
+│   ├── ui/                                 bạn sở hữu
+│   │   ├── index.html, styles.css, app.js
+│   │   ├── mock-runtime.js
+│   │   └── views/, assets/
+│   ├── integration/                        Tùng sở hữu
+│   │   ├── bootstrap.js                    classic JS, dùng được file://
+│   │   ├── contract-fixtures.js             fixture giả, tracked
+│   │   └── runtime.generated.js            generated, gitignore, chỉ LIVE
+│   └── auth/                               Tùng: callback/SSO assets theo SDK
 ├── src/
-│   ├── app/
-│   │   ├── layout.tsx, page.tsx, globals.css  A
-│   │   ├── auth/redirect/                    A
-│   │   └── api/v1/                          B
-│   ├── components/                          A
-│   ├── client/                              A
-│   │   ├── api.ts, identityCrypto.ts
-│   │   ├── tidecloakProvider.tsx
-│   │   └── mocks/                           chỉ dev, nhãn SIMULATED
-│   ├── contracts/                           B giữ file, hai người duyệt
-│   │   ├── v1.ts, schemas.ts, fixtures.ts
-│   │   └── contentEncoding.ts               client/server dùng chung
-│   └── server/                              B, không import vào client
-│       ├── auth.ts, config.ts, db.ts
-│       └── services/, jury/, policy/, audit/
-├── tests/
-│   ├── unit/client/, ui/, e2e/               A
-│   └── unit/server/, contracts/, integration/ B
-└── docs/integration/                        handoff riêng, B ghi kết quả merge
+│   ├── app/                                Tùng: host/redirect và API
+│   ├── contracts/                          Tùng: types/schema/encoding/fixture source
+│   ├── integration/browser-runtime.ts      Tùng: SDK/API/crypto trong browser
+│   └── server/                             Tùng: services/DB/council/policy/audit
+├── prisma/, scripts/, tests/, .github/      Tùng
+├── package.json, package-lock.json, config/ Tùng
+└── docs/integration/                        handoff mỗi người; Tùng ghi test/gates
 ~~~
 
-Quy tắc:
+Một file có một owner. Bạn không sửa bootstrap/runtime/dependency để nối UI; yêu cầu Tùng thay runtime contract trước. Tùng không sửa UI để che DTO mismatch nếu chưa bàn giao ownership.
 
-- Một file chỉ một người sửa tại một thời điểm. Muốn đổi file bên kia, bàn giao tên file + lý do + thời điểm trước.
-- A yêu cầu dependency qua B; B sửa manifest/lockfile, merge baseline nhỏ rồi A nhận. Không để hai agent cùng sửa lockfile.
-- Contract đổi trước consumer. Không dùng any để che lệch DTO hoặc sao chép type vào UI.
-- Hai người/agent dùng hai checkout/worktree riêng, env/node_modules/DB/port riêng; không đổi branch trong cùng working tree.
-- Không tự đổi framework, package manager, route convention hoặc major dependency giữa milestone.
+Static UI được dùng nguyên tại /ui/index.html; Next.js phục vụ public từ URL root, không cần viết lại React. [Next.js public folder](https://nextjs.org/docs/app/api-reference/file-conventions/public-folder).
+
+Hai checkout riêng. Chỉ checkout máy Tùng cần node_modules, env, DB, cổng app và Docker; máy bạn chỉ cần browser/editor và Git nếu có. Không cài toolchain như điều kiện bắt đầu UI.
 
 ## 4. Baseline trước khi tách branch
 
-### 4.1. Foundation chung
+### 4.1. Foundation trên máy Tùng, UI local trên máy bạn
 
-1. B kiểm tra Node/npm/Docker/Git trên hai máy. Chọn cùng Node LTS đáp ứng scaffold/dependencies; ghi bản thực vào .nvmrc và engines sau smoke test.
-2. Scaffold theo Tide Quickstart vào thư mục tạm rồi đưa source vào root repo hiện có, giữ tài liệu và .git; không tạo repo Git lồng nhau.
-3. Hoàn tất enrollment/license/realm. Chốt và xác minh roster hội đồng ban đầu cùng policy chọn N/ngưỡng qua ceremony bootstrap một lần ở mục 10.1. Container chạy chưa chứng minh auth hoạt động.
-4. Pin bản Next.js/React/SDK/tooling đã chạy thành công, Prisma CLI/client cùng 6.19.0 cho SQLite/CLI trong hướng dẫn. Đây không phải khẳng định Prisma mới nhất.
-5. B tạo contracts/schema/fixtures, skeleton API, scripts/test config và migration đầu. A tạo shell/client; cùng kiểm tra client/server import boundary.
-6. Cùng thử token thật/token giả và SDK smoke test; gate chưa đạt vẫn NOT RUN/FAIL, không giả thành công.
-7. Commit/push một baseline lên integration/voicevault; hai branch từ cùng SHA.
+1. Tùng kiểm tra/pin Node/npm/Docker/Next/SDK/Prisma trên máy mình; máy bạn không phải cài cùng toolchain.
+2. Bàn giao sớm runtime contract mục 5.4, bootstrap.js và contract-fixtures.js không cần build để dùng local. Hai người chốt index/app mount hook.
+3. Bạn mở public/ui/index.html bằng file://; fixture được nạp bằng classic script, không fetch JSON hoặc ES module. Mock có nhãn.
+4. Tùng scaffold/pin Next vào root repo hiện có, cấu hình phục vụ /ui/index.html, hoàn tất Tide enrollment/realm/roster bootstrap và dựng LIVE bridge.
+5. API/schema/fixture có một nguồn phía Tùng. Bạn chỉ dùng interface và view fixture, không sao chép TS/type hoặc đoán raw JSON.
+6. Tùng chạy auth/SDK/live probes, bạn review UI; gate chưa kiểm chứng vẫn FAIL/NOT RUN.
+7. Commit/push baseline lên integration/voicevault, cả hai branch cùng SHA. Không cần runtime.generated.js trên máy bạn.
 
-B ghi manifest không nhạy cảm tại docs/integration/baseline.json: baseline SHA, contract version, Node/npm và dependency version, image digest, realm/client ID, policy/contract ID, directory version, council roster hash/version, minVoters/maxVoters và bootstrap receipt. Ghi kết quả G1–G5 tại docs/integration/gates.md, tách kết quả mock và live; không lưu token, credential hoặc reporter plaintext trong các file này.
+Manifest docs/integration/baseline.json ghi version toolchain Tùng, SDK/image/policy ID, roster hash/version, min/max và bootstrap receipt. docs/integration/gates.md tách mock/manual/LIVE, không token/secret/plaintext.
 
-Quickstart có thể khởi tạo bằng latest; sau smoke test lưu image digest/tag thực tế vào manifest. Hai máy không tự kéo hai bản khác nhau rồi coi là cùng môi trường. [Quickstart](https://docs.tide.org/get-started/Tidecloak%20Quickstart).
+Quickstart latest chỉ khởi tạo; Tùng pin image digest và dependency thật sau smoke test. [Quickstart](https://docs.tide.org/get-started/Tidecloak%20Quickstart).
 
 ### 4.2. Environment
 
-- Commit .env.example không bí mật; mỗi checkout tạo .env riêng, gitignored. Prisma 6 và Next.js cùng nạp .env root theo baseline.
-- DATABASE_URL=file:./local/voicevault-dev.db được hiểu theo vị trí Prisma schema; tạo prisma/local trước migrate. Mỗi checkout có DB riêng.
-- Cấu hình browser chỉ chứa URL/issuer, realm, client ID và public JWK nếu cần; không admin token/secret trong NEXT_PUBLIC_* hoặc bundle client.
-- Đăng ký callback đúng origin/cổng của hai máy. A 3000, B có thể 3001; E2E trỏ rõ instance.
-- B giữ manifest tags/roles/policy và thông báo mọi thay đổi realm; không sửa console âm thầm khi A đang test.
-- Không commit .env, DB/WAL/SHM, token, private key, enrollment URL nhạy cảm hoặc realm export chứa credential.
+- Chỉ Tùng tạo .env/DB/realm/SDK config. .env.example không bí mật; DB SQLite trong prisma/local được gitignore.
+- Browser bundle/config công khai không chứa admin credential, client secret hoặc reporter plaintext.
+- Callback trở về origin HTTP(S) thật của /ui/index.html; file:// không đăng nhập Tide hoặc gọi API.
+- Các assets UI dùng relative path, classic defer. Không Tailwind build/CDN/npm import trên máy bạn.
+- Tùng quản lý tags/roles/policy manifest và thông báo thay đổi; không sửa console âm thầm khi đang review.
+- Không commit DB/WAL/SHM/env/token/key/realm export nhạy cảm. Public fixture chỉ dữ liệu giả.
+- Nếu bạn có URL test hợp lệ, có thể review LIVE qua browser; localhost trên máy Tùng không tự là URL truy cập từ máy bạn.
 
 ### 4.3. Script phải tạo ở M0
 
-Chưa có các script này trong repo hiện tại. B phải tạo và xác minh trước khi dùng ở runbook merge.
+Chưa có các script này trong repo hiện tại. Tùng phải tạo và xác minh; mọi lệnh trong bảng chạy trên máy Tùng, không trên máy bạn.
 
 | Script | Trách nhiệm |
 | --- | --- |
-| dev/build/start | Next.js theo scaffold đã pin |
+| build:fixtures | Export JS fixture giả cho file://, đối chiếu contract |
+| build:bridge | Bundle SDK/runtime browser trước khi chạy/build Next |
+| dev/build/start | Build bridge trước Next dev/build; start dùng artifact đã build |
+| test:ui:file | Playwright mở file://, không SDK/API, kiểm tra local UI |
+| test:ui:live | Playwright qua /ui/index.html, runtime LIVE/API thật |
 | typecheck | tsc --noEmit |
 | lint | ESLint đã cấu hình; không mặc định mọi Next đều có next lint |
 | test:unit | Vitest: encoding, thuật toán, service/client adapter |
@@ -195,7 +191,7 @@ npm ci yêu cầu manifest/lockfile khớp, không tạo lockfile mới. [npm ci
 
 ## 5. Contract v1 dùng chung
 
-B giữ src/contracts; A review cách dùng trước tách branch. UUID browser tạo trước mã hóa, server validate/chống trùng và không đổi ID đã ràng buộc trong proof. Display name không phải ID phân quyền. Mọi request/response validate runtime bằng schema chung; type không thay validation.
+Tùng giữ src/contracts và export contract-fixtures.js; bạn review view/runtime interface trước tách branch, không import TypeScript vào UI classic. UUID browser tạo trước mã hóa, server validate/chống trùng và không đổi ID đã ràng buộc trong proof. Display name không phải ID phân quyền. Mọi request/response validate runtime bằng schema chung; type không thay validation.
 
 Thay contract phải có schema + fixture + contract test + ví dụ request/response; merge trước consumer. Breaking change có version mới hoặc chuyển đồng bộ cùng milestone.
 
@@ -311,9 +307,58 @@ Binding rõ chỉ hỗ trợ routing/check sơ bộ; bản tương ứng phải 
 
 Capability giúp UI hiển thị, không thay quyết định mật mã. Không trả nguyên Prisma object cho client.
 
-### 5.3. Mock để A làm độc lập
+### 5.3. Mock để bạn làm độc lập
 
-Mock API client implement cùng interface/fixtures v1, chỉ dev, nhãn “Dữ liệu mô phỏng” và SIMULATED. Có case success, N=3/4/5 với T tương ứng, token lỗi, pending, thiếu jury, expired, tamper, unavailable và thay đổi roster chưa có hiệu lực. Không tự fallback khi API thật lỗi. Live demo/live test phải tắt mock và báo lỗi nếu phát hiện mock đang dùng.
+Bạn implement mock-runtime.js theo interface mục 5.4, dùng window.VoiceVaultFixtures từ script local. Không fetch JSON/import module/CDN để mở file://. Mock có state memory giả và banner rõ, không cần crypto để render.
+
+file:// chỉ MOCK. HTTP(S) chỉ LIVE; runtime/config/service lỗi hiện lỗi, không fallback. Live tests phải đối chiếu request thật và mode LIVE, không chỉ badge. Có fixture N=3/4/5, T=2/3/4 và council pending/READY/APPLYING/APPLIED/STALE.
+
+### 5.4. Runtime bridge v1 giữa UI và hệ thống
+
+Đây là contract nội bộ mới để tách toolchain. Tùng cung cấp LIVE implementation; bạn cung cấp MOCK implementation. Cùng shape input/output, cùng contractVersion=v1 và view model; UI không fetch API hoặc đọc raw token.
+
+~~~text
+window.VoiceVaultUI.mount(runtime)      // Bạn định nghĩa, bootstrap gọi một lần.
+window.createVoiceVaultMock(fixtures)  // Bạn định nghĩa, chỉ file:// sử dụng.
+
+runtime.contractVersion = "v1"
+runtime.mode = "MOCK" hoặc "LIVE"
+runtime.init() -> Promise<ApiResult<SessionView>>
+runtime.getSession() -> Promise<ApiResult<SessionView>>
+runtime.login() / runtime.logout() -> bắt đầu flow; có thể redirect trong LIVE
+runtime.listIdeas(query) -> Promise<ApiResult<Page<IdeaView>>>
+runtime.submitIdea(formInput) -> Promise<ApiResult<IdeaView>>
+runtime.endorseIdea(id, expectedVersion) -> Promise<ApiResult<IdeaView>>
+runtime.decideIdea(id, decisionInput) -> Promise<ApiResult<IdeaView>>
+runtime.listReports(query) -> Promise<ApiResult<Page<ReportView>>>
+runtime.submitReport(formInput) -> Promise<ApiResult<ReportView>>
+runtime.getDirectory() -> Promise<ApiResult<DirectoryView>>
+runtime.createUnmaskRequest(reportId, input) -> Promise<ApiResult<UnmaskRequestView>>
+runtime.getVotingRequest(id) -> Promise<ApiResult<VotingRequestView>>
+runtime.castVote(id, decisionInput) -> Promise<ApiResult<VotingRequestView>>
+runtime.getCouncil() -> Promise<ApiResult<CouncilView>>
+runtime.listCouncilChanges(query) -> Promise<ApiResult<Page<CouncilChangeView>>>
+runtime.submitCouncilChange(formInput) -> Promise<ApiResult<CouncilChangeView>>
+runtime.applyCouncilChange(id, expectedVersion) -> Promise<ApiResult<CouncilChangeView>>
+runtime.revealIdentity(resourceKind, resourceId, requestId) -> Promise<ApiResult<IdentityView>>
+runtime.listAudit(query) -> Promise<ApiResult<Page<AuditEventView>>>
+~~~
+
+Tùng định nghĩa trong contract các view còn thiếu trước U1: SessionView (authenticated/displayName/capabilities, không token), Page (items/nextCursor), VotingRequestView (operation/context/N/T/voters/validApprovals/state/expiry), IdentityView (chỉ view tạm, không persist) và từng form schema. Khi chưa đăng nhập, init/getSession trả SessionView với authenticated=false để UI hiện nút đăng nhập; không tự ép login loop. Các Page/View chỉ là dữ liệu JS serializable; UI không phải dùng framework.
+
+Phân biệt formInput và API DTO:
+
+| UI đưa cho runtime | Runtime LIVE phía browser làm |
+| --- | --- |
+| submitIdea: title/description/category/publishCreditOnApproval | Lấy identity phiên, tạo UUID/binding/hash/proof/envelope và gọi POST /ideas |
+| submitReport: title/evidenceDetails/accusedPersonIds/contact/consent theo schema | Giữ contact/identity trong browser, mã hóa rồi gửi API DTO; không gửi plaintext identity lên server |
+| castVote: APPROVE hoặc DENY/reason trên votingRequestId | Lấy context bất biến, tạo/verify proof theo SDK, submit /voting-requests/:id/approvals |
+| decideIdea/council proposal/apply | Tạo hoặc chuyển artifact theo policy và API; UI không tự ký/cấp grant |
+| revealIdentity | Lấy challenge/envelope, crypto/verify trong browser; không POST plaintext về server |
+
+UI chỉ render ApiResult/capabilities/N/T/state; không tự quyết quyền. IdentityView bỏ khỏi state khi đóng/logout, không log/storage/SSR. Tùng thực hiện canonical encoding/runtime validation, không yêu cầu bạn cài SDK để gọi một hàm.
+
+Một nguồn contract phía Tùng sinh fixture JS track trong Git; không để mock và LIVE tự đoán tên field. bootstrap.js do Tùng sở hữu, load order fixture -> mock factory -> app mount definition -> bootstrap. Generated LIVE bundle được tải chỉ trên HTTP(S), version mismatch dừng CONTRACT_MISMATCH; mất bridge/config không chuyển mock.
 
 ## 6. API, auth và xử lý lỗi
 
@@ -338,6 +383,7 @@ Prefix /api/v1; mọi endpoint trừ health đều auth. List phân trang tối 
 | POST /unmask-requests/:id/reveal-challenges | Adapter xác minh bằng chứng rồi tạo challenge thật |
 | GET /resources/:kind/:id/identity-envelope | Challenge/request hợp lệ, đúng recipient, ciphertext không plaintext |
 | GET /council | Roster/version/hash hiện hành, không endpoint PATCH roster trực tiếp |
+| GET /council/change-requests | Danh sách CouncilChangeView phân trang theo quyền; phục vụ runtime.listCouncilChanges |
 | POST /council/change-requests | CreateCouncilChangeRequest; snapshot roster cũ, bốc N/người một lần, tạo VotingRequest |
 | GET /council/change-requests/:id | Diff/roster đích, N/T, tiến độ vote, apply state |
 | POST /council/change-requests/:id/apply | Executor hợp lệ; verify threshold/policy/version, outbox/QEA nếu cần, không tự ghi đè roster |
@@ -408,12 +454,12 @@ APPROVED + consent + verified decision
 
 MVP yêu cầu endorse trước approve; REJECTED terminal, không reopen. APPROVED không đồng nghĩa đã mở/công khai. Transition kiểm tra role/org/expectedVersion trong transaction.
 
-1. A lấy org từ phiên, sinh UUID, canonicalize/hash nội dung.
+1. UI của bạn gọi submitIdea bằng form input; browser runtime do Tùng viết lấy org/identity từ phiên, sinh UUID và canonicalize/hash nội dung.
 2. Payload bảo vệ gồm binding, tác giả xác thực, consent và origin proof G4. Nếu tự công khai lúc approve, user đồng ý rõ từ lúc nộp.
 3. B validate/hash/persist thật và trả receipt, không submitter FK.
 4. Manager endorse riêng; không PATCH tác giả/ciphertext/nội dung đã nộp.
 5. Director tạo decision artifact theo cơ chế đã xác minh; sửa status không tạo proof hợp lệ.
-6. Recipient thực hiện challenge; browser validate schema/proof/binding/hash trước hiện tên.
+6. Recipient thực hiện challenge qua browser runtime của Tùng; runtime validate schema/proof/binding/hash rồi UI mới hiện tên.
 7. Public credit chỉ lưu khi có consent và artifact G4 xác minh được, không tin tên tùy ý browser gửi. Chưa có thì chỉ hiện trong phiên hợp lệ và công bố ledger chưa được kiểm chứng.
 
 REJECTED không sinh yêu cầu mở trong MVP. UI ghi “Không công khai danh tính khi từ chối”, không “SEALED FOREVER” hoặc “Zero Ridicule”.
@@ -430,7 +476,7 @@ UnmaskRequest: COLLECTING -> READY -> GRANTED
 
 READY là tiến độ, chưa là quyền mật mã. GRANTED sau adapter verify/cấp authorization thật. Timeout external call cần đối soát request ID; grant không chứng minh browser đã xem plaintext.
 
-1. A gửi evidence giả, nhiều accused IDs và envelope, không department tự khai.
+1. UI của bạn gọi submitReport với evidence giả và nhiều accused IDs; browser runtime của Tùng tạo envelope, không nhận department tự khai để quyết định CoI.
 2. B lấy roster hội đồng đã chốt từ đầu, resolve directory/CoI và snapshot policy/roster. Bốc N trong khoảng hợp lệ rồi bốc N người một lần; khóa N, danh sách và T = ceil(2 × N / 3), hoặc lưu chờ.
 3. Assigned juror tạo UnmaskRequest liên kết VotingRequest, gắn resource/binding, ciphertext/assignment/roster hash/version, N/T, recipient/purpose/nonce/expiry. Các yêu cầu mở trên cùng assignment của phản ánh không bốc lại N/người để tìm hội đồng thuận lợi.
 4. Mỗi juror xem cùng context, phiên riêng, approve/deny bằng proof verify được. MVP: một DENY hợp lệ kết thúc request, xem lại cần request mới.
@@ -454,7 +500,7 @@ READY là tiến độ, chưa là quyền mật mã. GRANTED sau adapter verify/
 
 Không cấp decrypt role theo tag cho toàn pool/director rồi dựa vào UI trì hoãn gọi. Primitive tag không thực thi resource policy thì dùng cơ chế được Tide hỗ trợ và chứng minh, hoặc giữ khóa.
 
-### 8.2. Wrapper SDK phía A
+### 8.2. Wrapper SDK phía Tùng trong browser runtime
 
 SDK reference dùng mảng item. Wrapper này chỉ chuẩn hóa primitive tag, không tự thêm quorum/state policy và không là reveal hoàn chỉnh. Dùng smoke test hoặc khi G1/G2 xác nhận flow phù hợp.
 
@@ -488,7 +534,7 @@ export async function decryptJson<T>(
 
 Bind function đúng instance/hook đã pin. Validate runtime, không chỉ as T. Tên selfencrypt/selfdecrypt chưa xác nhận semantics cross-user. [Next SDK](https://docs.tide.org/Languages/NextJS/tidecloak-nextjs-reference), [JS types](https://docs.tide.org/Languages/JavaScript/tidecloak-js-reference).
 
-### 8.3. Policy adapter phía B
+### 8.3. Policy adapter phía Tùng
 
 Interface nội bộ phải triển khai/kiểm chứng, không khẳng định tên API Tide có sẵn:
 
@@ -710,7 +756,7 @@ npm run db:generate
 git diff -- prisma/schema.prisma prisma/migrations
 ~~~
 
-Máy A/checkout integration sau merge:
+Checkout integration trên máy Tùng sau merge; máy bạn không chạy hai lệnh này:
 
 ~~~powershell
 npm run db:migrate:deploy
@@ -721,182 +767,80 @@ Không sửa migration đã áp dụng; hợp nhất bằng migration tiến t�
 
 ## 12. Code song song và Git merge chi tiết
 
-### 12.1. Milestone
+Chi tiết lệnh và checklist riêng: [bạn](./architecture_toi.md#7-git-và-bàn-giao-cho-tùng), [Tùng](./architecture_tung.md#8-git-và-merge).
 
-| Mốc | A | B | Điều kiện |
+### 12.1. Milestone phù hợp môi trường
+
+| Mốc | Bạn, không toolchain | Tùng, có toolchain | Điều kiện |
 | --- | --- | --- | --- |
-| M0 chung | DTO review, shell/client probe, roster/vote UI | Scaffold/contracts/deps/env/scripts/schema, bootstrap roster/policy một lần | Cùng SHA, roster v1/hash đã chốt, token thật/giả được thử |
-| M1 nối đầu | Form/list fixture, SDK probe | /me/API skeleton/persist/policy probe | API tối thiểu merge trước UI, browser tạo record thật |
-| M2 ý tưởng | Encrypt/submit/review/reveal | Decision/origin/binding/policy | G1/G2/G4 có kết luận, bypass không mở sớm |
-| M3 phản ánh + council | Multi-accused, N/T/voter list, VotePanel và council-change UI | Roster version, random N/người, VotingService chung, CoI/proof/outbox/grant/apply | T=ceil(2N/3), independent, chống replay và không đổi roster trước APPLIED |
-| M4 hardening | Multi-session E2E, UX/privacy | QEA/concurrency/audit/fresh migration | Security cases đạt trên integration |
-| M5 bàn giao | Video, mock tắt | Clean checkout/runbook/version manifest | Hai máy cùng commit, cam kết khớp bằng chứng |
+| M0 | Chốt UI/runtime contract, mở file mock | Bootstrap/fixtures, shell, contract và platform baseline | file:// mở được, cùng SHA |
+| M1 | Layout/form/list bằng mock | Next static hosting/API skeleton/LIVE bridge | Không chuyển UI React khi merge |
+| M2 | Review idea/vote/council views và state | SDK/crypto/proof/API/DB thật, G1–G4 | Runtime interface khớp, giữ bảo mật chung |
+| M3 | Responsive, lỗi/loading/empty, manual cases N/T | Council/random N/shared voting/QEA, G3/G5 | READY không APPLIED, không grant sớm |
+| M4 | Handoff UI và review LIVE nếu có URL/screen share | Merge, browser file/local/LIVE, migration/fresh checkout | Một UI dùng hai runtime, mock không che lỗi |
+| M5 | Demo/storytelling/UX review | Test/gates/SHA/runbook và README thực tế | Không nhận mock là bằng chứng live |
 
-Ước lượng chia việc: M0/feasibility 45–90 phút; mỗi đợt M1–M3 60–120 phút nếu SDK thuận lợi; dành riêng 45–90 phút tích hợp cuối, 30–45 phút demo. Không cam kết hoàn thành policy chưa chứng minh trong thời lượng cố định.
+Tùng nhận phần toolchain nhiều hơn; bạn làm đủ màn hình, state, mock, manual QA và nội dung demo để Tùng tập trung platform/policy. Không chờ hệ thống thật hoàn chỉnh mới làm UI.
 
-G1–G3 tắc: A tiếp tục UI theo contract và POLICY_UNAVAILABLE; B ưu tiên policy, không thay proof bằng biến frontend. Đầu mốc chốt owner, giữa mốc gửi SHA/contract change, cuối mốc merge/smoke; không chờ hoàn thành cả hệ thống mới merge.
+### 12.2. Branch và ownership
 
-### 12.2. B tạo baseline
+Base branch hiện là master, remote origin. Tùng tạo integration/voicevault và baseline duy nhất từ working tree sạch. Bạn tạo work/ui-static, Tùng tạo work/server-policy từ cùng SHA.
 
-Lệnh sau là hướng dẫn thực hiện sau khi có M0, chưa được chạy khi sửa tài liệu. Base branch hiện là master, remote origin; nếu đổi main sửa runbook thống nhất. Trước switch/merge working tree phải sạch; commit chọn lọc việc dở, không reset hard/stage việc ngoài scope.
+Bạn chỉ stage public/ui và handoff. Tùng giữ public/integration, dependency/lockfile/contracts/migration/build/tests. Nếu bạn không dùng Git được, ZIP public/ui giữ relative path + baseline SHA; Tùng nhập branch import riêng và review diff, không chép đè repo.
 
-~~~powershell
-git status --short
-git fetch origin
-git switch master
-git pull --ff-only origin master
-git switch -c integration/voicevault
-~~~
+Sau baseline, bạn không chạy npm ci/db generate/migration dù repo chứa package.json. Tùng chạy mọi dependency/build/test trên checkout mình.
 
-Cùng hoàn thành M0, stage/review/commit foundation rồi B:
+### 12.3. Merge từng lát cắt trên máy Tùng
 
-~~~powershell
-git push -u origin integration/voicevault
-git rev-parse HEAD
-~~~
+1. Hai bên commit/push branch riêng, handoff file/contract version/SHA/prerequisite. Bạn báo manual browser result; Tùng báo automated/LIVE riêng.
+2. Tùng fetch, switch integration/voicevault, pull --ff-only và kiểm working tree sạch.
+3. Merge --no-ff --no-commit branch cần nhập; contract/runtime trước consumer nếu có breaking change.
+4. Review conflicts đúng owner; không Accept All cho contract/lockfile/migration và không sửa UI âm thầm.
+5. Tùng chạy npm ci, build fixtures/bridge, validate/migrate/generate, check, test:ui:file và integration trên cây đã merge.
+6. Dựng app/realm/test DB rồi chạy test:ui:live, live security và E2E phù hợp mốc.
+7. Đạt mới commit merge/push integration, gửi SHA/kết quả. Already up to date thì đối chiếu handoff, không commit rỗng.
+8. Bạn fetch/merge integration vào work/ui-static rồi mở index.html lại; không có bước npm/DB.
 
-Gửi baseline SHA cho A, không scaffold app thứ hai.
+### 12.4. Conflict và rollback
 
-### 12.3. Branch riêng từ cùng SHA
+- UI public/ui: bạn xử lý; runtime/API/server: Tùng xử lý; contract đổi thì hai người chốt ngữ nghĩa trước.
+- Dependency/lockfile: Tùng reconcile có chủ đích, npm install khi cần tạo lock rồi kiểm npm ci bằng npm version đã pin.
+- Prisma: Tùng single writer, không sửa applied migration hoặc reset DB cho xanh; tạo migration tiến tới và đối chiếu drift/checksum.
+- git merge --abort chỉ bỏ merge chưa commit, không hoàn tác DB/realm. Bảo toàn các sửa chữa duy nhất trước khi abort.
+- Merge đã push hỏng thì revert merge commit đã xác minh trên lịch sử chung, không reset/force-push; DB/policy/grant rollback riêng.
+- M5 đạt mới PR integration -> master, người kia review UX/contract/gates; hai branch riêng tự chạy chưa đủ bằng chứng hệ thống chung.
 
-Checkout A:
-
-~~~powershell
-git fetch origin
-git switch -c work/ui-client --track origin/integration/voicevault
-git push -u origin work/ui-client
-npm ci
-npm run db:generate
-~~~
-
-Checkout B:
-
-~~~powershell
-git fetch origin
-git switch -c work/server-policy --track origin/integration/voicevault
-git push -u origin work/server-policy
-npm ci
-npm run db:generate
-~~~
-
-Sau push -u, upstream là branch công việc của từng người. Kiểm tra SHA, không chỉ tên branch. Cùng máy dùng hai clone/worktree trong thư mục được phép; env/DB/port riêng.
-
-### 12.4. Commit/handoff và đồng bộ
-
-Mỗi người chỉ sửa file mình, commit lát cắt nhỏ, chạy kiểm tra phù hợp + npm run check, stage file cụ thể/git add -p và review git diff --cached. Không token/env/DB. Live chưa chạy ghi NOT RUN. Push branch riêng, gửi handoff mục 15; không tự push master/integration.
-
-Sau mỗi integration merge, commit việc dở, đảm bảo sạch và trên branch mình:
-
-~~~powershell
-git fetch origin
-git merge origin/integration/voicevault
-npm ci
-npm run db:generate
-npm run check
-~~~
-
-Migration mới thì chạy db:migrate:deploy trên DB local riêng trước integration test. git pull từ upstream branch công việc chưa chắc nhận integration. Không rebase/force-push commit người khác đã dùng.
-
-### 12.5. B merge và kiểm tra cây kết quả
-
-Checkout integration sạch, env/DB riêng; nếu một checkout phải commit/push việc server trước switch. Thứ tự contract → API tối thiểu → UI, lặp theo dependency:
-
-~~~powershell
-git fetch origin
-git switch integration/voicevault
-git pull --ff-only origin integration/voicevault
-git status --short
-git merge --no-ff --no-commit origin/work/server-policy
-~~~
-
-Merge sạch hoặc giải quyết conflict xong, kiểm tra trước commit/push:
-
-~~~powershell
-git diff --check
-git diff --cached --check
-npm ci
-npm run db:validate
-npm run db:migrate:deploy
-npm run db:generate
-npm run check
-npm run test:integration
-~~~
-
-Chạy thêm live/E2E cần thiết của mốc, với app/realm/test DB đã dựng theo mục 13. Đạt mới:
-
-~~~powershell
-git commit -m "merge: integrate server policy milestone"
-git push origin integration/voicevault
-~~~
-
-Lặp với origin/work/ui-client/message phù hợp. Already up to date thì không có merge mới để commit, kiểm tra SHA handoff. B không sửa client âm thầm để ép xanh; consumer A sửa, provider B sửa. Sau push, cả hai đồng bộ mục 12.4.
-
-### 12.6. Conflict, lockfile và migration
-
-~~~powershell
-git status --short
-git diff --name-only --diff-filter=U
-~~~
-
-| Conflict | Xử lý |
-| --- | --- |
-| Contract/schema/fixture | Hai người chốt ngữ nghĩa, B contract, A consumer, chạy contract tests |
-| Component/client | A sửa theo contract mới, B review auth/policy |
-| API/service | B sửa, A kiểm response thật |
-| Manifest/lockfile | B hợp nhất dependency có chủ đích; manifest đổi thì npm install bằng npm version chung để tạo lock, xác minh npm ci |
-| Prisma/migration | B giữ lịch sử đã áp dụng, hòa giải bằng migration tiến tới |
-| Env/DB trong diff | Dừng stage/push, loại đúng file; credential đã lộ xử lý thay riêng |
-
-Không Accept All Ours/Theirs cho contract/manifest/migration. Stage đúng file sau giải quyết, kiểm tra conflict marker trong code/config đã sửa, chạy lại check/test. Không nhầm code ví dụ trong tài liệu với conflict thật.
-
-Bỏ merge chưa commit bằng git merge --abort khi working tree sạch trước merge; giữ lại các sửa chữa duy nhất đã bàn giao. Abort không hoàn tác DB/realm đã thay.
-
-### 12.7. Nhập master và rollback
-
-M5 đạt: PR integration/voicevault → master ghi gate/validation/giới hạn/SHA demo, người còn lại review. Hai branch tự chạy được chưa đủ nhận là hệ thống chung chạy được.
-
-Merge đã push bị lỗi: xem git log --oneline --merges, xác minh SHA rồi dùng git revert -m 1 MERGE_COMMIT_SHA (thay tên mẫu bằng SHA thật), chạy lại check/push. Không reset/force-push lịch sử chung. Revert merge ảnh hưởng merge lại; cần commit sửa mới hoặc revert lại revert trước khi nhập lại cùng lịch sử.
-
-Git rollback không thu hồi plaintext/grant, migration hay policy đã áp dụng. B có kế hoạch DB/policy riêng và chạy lại deny tests.
+Các lệnh copy/paste trên máy Tùng ở architecture_tung.md; máy bạn chỉ có Git/browser như architecture_toi.md.
 
 ## 13. Chạy hệ thống sau merge
 
-1. Hai máy cùng SHA; đối chiếu Node/npm/SDK/Prisma, lockfile và image digest M0.
-2. Dựng TideCloak, kiểm enrollment/client/issuer/JWK/QEA/callback. Không copy token người khác để chuyển persona.
-3. Tạo .env local, xác nhận DATABASE_URL đúng checkout, tạo prisma/local.
-4. Áp migration/seed lên DB demo đã chỉ định:
+Tùng chạy toàn bộ phần này. Máy bạn chỉ mở HTML mock hoặc URL test có sẵn; không cần dựng instance thứ hai.
 
-~~~powershell
-npm ci
-npm run db:validate
-npm run db:migrate:deploy
-npm run db:generate
-npm run db:seed
-npm run check
-~~~
+1. Đối chiếu integration SHA/contract và toolchain/image/policy manifest trên máy Tùng.
+2. Tùng dựng realm/client/callback/roster, .env và DB riêng, không copy token để đổi persona.
+3. npm ci, build:fixtures, build:bridge, db validate/migrate/generate/seed và check. Fixture/build diff ngoài dự kiến phải chốt lại với bạn.
+4. Chạy Next và mở /ui/index.html qua HTTP(S), không file:// để chứng minh LIVE. Root host có thể redirect, không route trùng static.
+5. Kiểm relative assets, bootstrap mode, contract version, SDK assets/callback/CSP và API cùng origin.
+6. test:ui:file mở file:// không server/SDK, test:ui:live qua Next dùng API thật; unit/integration/live/E2E chạy trên DB/realm test theo prerequisite.
+7. Tạo hồ sơ mới, refresh/restart đọc lại, direct bypass và inspect DB/log/storage; không dùng seed giả proof để thay test.
+8. Tùng gửi SHA, kết quả và video/screen share hoặc URL test đã có để bạn review UX. localhost trên máy Tùng không tự truy cập từ máy bạn.
 
-5. Terminal riêng npm run dev; đợi health và đặt BASE_URL test đúng instance, không gọi server cũ.
-6. test:integration dùng DB test riêng; sau đó test:security:live và test:e2e theo realm/fixture đúng. Thiếu prerequisite ghi NOT RUN, không skip im lặng báo xanh.
-7. Browser tạo hồ sơ mới, refresh/restart đọc lại; seed tải sẵn không thay persist test thật.
-8. Happy path + direct bypass, inspect DB/log/storage không có reporter plaintext/token.
-
-Seed idempotent, dữ liệu giả, không ghi proof/grant “hợp lệ” thẳng DB và không overwrite council đã bootstrap. Khởi tạo roster chỉ qua ceremony một lần, thay đổi qua vote. Crypto fixture tạo qua flow thật hoặc gắn SIMULATED.
+Seed không overwrite roster đã bootstrap hoặc tạo approval/grant giả. N/T/roster và policy vẫn theo mục 10. Runtime/build lỗi phải báo unavailable, không chuyển LIVE sang mock.
 
 ### 13.1. Triage tích hợp
 
 | Lỗi | Kiểm tra trước | Owner |
 | --- | --- | --- |
-| UI undefined/schema fail | Contract version, ApiResult, response/fixture | A + B |
-| Token thật 401 | Issuer/client/algorithm/org/expiry/QEA | B |
-| Login loop | Origin/callback/port/SSO/cookie | A + B |
-| An encrypt được, Chi không mở | G1/sharing/recipient/key scope, không cấp role rộng lách | A + B |
-| Đủ T phiếu vẫn khóa | N/T đã chốt, context/proof/independent/assignment/roster hash/expiry/outbox | B |
-| Council đổi trước vote đủ | Dừng demo, rà direct DB/IAM/seed/bootstrap bypass và publish version | B + A |
-| Roster đổi nhưng quyền/phiếu cũ vẫn dùng được | STALE/version check trên API và Fabric, đối soát projection/artifact | B |
-| Một phiếu đã mở | Dừng demo, sửa policy/role, không chỉ progress bar | B, A xác nhận bypass |
-| Prisma thiếu field | Version/migration/generate đúng checkout | B |
-| SQLite lock/drift | DB dùng chung/concurrent process/transaction/checksum | B, không reset tùy tiện |
-| UI Fabric deny không request live | Mock fallback/client tự gắn nguồn | A + B |
+| file:// trắng hoặc local script lỗi | Relative paths, classic defer, không fetch JSON/ES module | Bạn + bootstrap của Tùng |
+| Không có fixture/bootstrap | Handoff baseline thiếu file track | Tùng |
+| UI lệch field/state | Runtime/fixture contract version, ApiResult | Cùng chốt, owner sửa |
+| LIVE bundle thiếu/404 | Build bridge trước Next build, static path | Tùng |
+| Token/SSO/login loop | Issuer/client/algorithm/callback/origin/port | Tùng |
+| An encrypt được, Chi không mở | G1/sharing/key/recipient, không role rộng lách | Tùng |
+| Đủ T vẫn khóa | Proof/context/N/T/independent/roster version/expiry/outbox | Tùng |
+| Council đổi trước vote/apply | Dừng demo, rà IAM/DB/seed/bootstrap/version | Tùng |
+| DB drift/lock | DB đúng checkout/process/migration/checksum | Tùng |
+| UI báo Fabric deny không request thật | Mock/provenance và runtime adapter | Bạn + Tùng |
 
 ## 14. Quyền riêng tư và audit
 
@@ -920,73 +864,25 @@ README/UI bỏ “an toàn tuyệt đối”, “mathematically safe”, “khó
 
 ## 15. Prompt và mẫu bàn giao
 
-Hai prompt dành cho hai người dùng coding agent trên checkout riêng, không yêu cầu agent tự tạo team hoặc viết chồng file.
+Prompt đầy đủ đã tách để không giao nhầm môi trường:
 
-### 15.1. Prompt A
+- [Prompt máy bạn](./architecture_toi.md#9-prompt-cho-coding-agent-trên-máy-tôi): chỉ HTML/CSS/JS classic, mock UI, không yêu cầu Node/Next/Docker.
+- [Prompt máy Tùng](./architecture_tung.md#10-prompt-cho-coding-agent-trên-máy-tùng): platform, browser LIVE runtime, SDK/policy, build/test/merge, giữ nguyên static UI.
 
-~~~text
-Đọc voicevault_technical_architecture.md, nhất là mục 3–9 và 12–16.
-Làm work/ui-client từ baseline SHA team cung cấp.
-Chỉ sửa UI layout/page/globals.css, auth redirect, components, client,
-test client/UI/E2E thuộc A. Import contracts/schema/encoding chung.
-Không tự sửa package/lockfile/Prisma/API/server/contracts.
-Cần dependency/DTO mới thì yêu cầu B merge trước.
-
-Làm milestone giao: UI fixture v1 rồi API client adapter thật.
-Mock có nhãn, tắt live, không fallback khi API lỗi.
-Hiện roster đã bootstrap, N/T và voters thực; VotePanel dùng chung phản ánh
-và council-change. Không nút sửa roster trực tiếp, không coi READY là APPLIED.
-SDK nhận mảng; runtime-validate payload/binding/proof sau mở.
-Không giả grant hoặc nhận Fabric chặn chỉ vì UI ẩn nút.
-Không persist/log reporter plaintext, token, payload nhận diện.
-
-Chạy check phù hợp, handoff SHA/file/contract/deps/prerequisite,
-lệnh thực sự đã chạy/kết quả/giới hạn. Không tự merge integration/master.
-~~~
-
-### 15.2. Prompt B
+Handoff chung:
 
 ~~~text
-Đọc voicevault_technical_architecture.md, nhất là mục 4–14 và 16.
-Làm work/server-policy, điều phối integration theo mốc, A review.
-Sở hữu contracts/server/API/Prisma/deps/config/CI.
-Không sửa UI che lệch DTO; contract/error/fixture merge trước consumer.
-
-Verify JWT thật/org/role; validate và persist thật với idempotency.
-Directory do server resolve, hỗ trợ multi-accused.
-Bootstrap roster một lần, mọi đổi membership/role/policy qua vote.
-Bốc ngẫu nhiên N rồi N voters từ roster hiện hành sau CoI; khóa N/T,
-T=ceil(2N/3), distinct có independent, thiếu người chờ không hạ ngưỡng.
-Dùng VotingService chung cho phản ánh/council-change; publish version
-sau proof/QEA/apply đã đối soát, proposal cũ STALE khi roster đổi.
-Approval/grant/apply gắn operation/request/resource/payload/roster/N/T/assignment/recipient/
-purpose/policy/expiry. Row count không là quyền mật mã.
-Không cấp decrypt role rộng thay resource policy.
-G1–G3 chưa đạt: POLICY_UNAVAILABLE, không giả proof/grant/Fabric deny.
-Không persist/log reporter plaintext/token.
-
-Migration single writer, env/DB riêng. Merge theo mục 12, kiểm tra
-cây đã merge, báo live gates riêng, không force-push lịch sử chung.
+Milestone / baseline SHA / commit SHA hoặc ZIP:
+Runtime contract version:
+File/endpoint/method thay đổi và owner:
+Fixture/bootstrap/dependency/migration thay đổi:
+Máy bạn: browser/manual MOCK result, ảnh và steps:
+Máy Tùng: lệnh thực sự đã chạy + result, G1–G5 PASS/FAIL/NOT RUN:
+Prerequisite / URL test hoặc screen share:
+Giới hạn/lỗi còn lại / file cần bàn giao:
 ~~~
 
-### 15.3. Handoff
-
-~~~text
-Milestone:
-Branch + commit SHA:
-Baseline/integration SHA đã đồng bộ:
-Contract version:
-File/endpoint thay đổi:
-Request/response mẫu (chỉ dữ liệu giả, không token):
-Dependency/config/migration thay đổi:
-G1–G5: PASS / FAIL / NOT RUN + bằng chứng không nhạy cảm:
-Lệnh đã chạy + kết quả:
-Prerequisite để người kia chạy:
-Giới hạn/lỗi còn lại:
-Shared file cần bàn giao owner:
-~~~
-
-Không chỉ báo “xong frontend/backend”; người kia phải tái hiện kết quả cùng SHA không đoán console config.
+Không nhận manual mock là live proof. Người nhận phải biết đúng SHA, runtime mode và config an toàn để tái hiện, không cần đoán console.
 
 ## 16. Kiểm thử, demo và điều kiện hoàn thành
 
@@ -1019,7 +915,8 @@ Không chỉ báo “xong frontend/backend”; người kia phải tái hiện k
 | IT tự cấp role | QEA request thật chưa áp dụng dưới ngưỡng | G5 live |
 | Logout/reload/DB/log/storage | Không reporter plaintext/token ngoài phạm vi | Privacy |
 | Fresh checkout/DB trống | Install/migrate/generate/seed/build theo runbook | Reproducibility |
-| Sau merge | UI/API thật cùng commit, mock tắt | E2E |
+| Local không toolchain | Mở file:// index.html, fixture/classic assets chạy, không API/SDK | test:ui:file + manual |
+| Sau merge | Cùng static UI qua Next, runtime LIVE/API thật cùng commit, không fallback | test:ui:live + E2E |
 
 Mock/unit không thay live tests; thiếu config/chưa chạy ghi NOT RUN, không xem skip là PASS.
 
@@ -1035,8 +932,8 @@ Không đủ thời gian thì chọn luồng mạnh nhất đã chứng minh và
 
 ### 16.2. Definition of Done
 
-- [ ] Dependency/config pin, hai máy cùng SHA/contract.
-- [ ] DTO/schema/fixture/client khớp, migration có owner/lịch sử.
+- [ ] Tùng pin dependency/config; hai người cùng SHA/runtime contract, máy bạn mở file mock và máy Tùng chạy LIVE.
+- [ ] DTO/schema/fixture/runtime/UI khớp; một static UI dùng MOCK/LIVE, không phải viết lại React; migration Tùng single writer.
 - [ ] Roster chốt một lần từ đầu, không bootstrap/seed overwrite; N/người random và T bất biến theo từng round.
 - [ ] Council thay đổi qua cùng VotingService như phản ánh; version mới chỉ APPLIED sau proof, xử lý STALE/phiếu cũ.
 - [ ] Auth/create/persist/reload/state/transaction chạy thật.
@@ -1062,3 +959,5 @@ Không đủ thời gian thì chọn luồng mạnh nhất đã chứng minh và
 - [Node randomInt](https://nodejs.org/api/crypto.html#cryptorandomintmin-max-callback).
 - [npm ci](https://docs.npmjs.com/cli/v11/commands/npm-ci/).
 - [Git merge](https://git-scm.com/docs/git-merge).
+- [Next.js public folder](https://nextjs.org/docs/app/api-reference/file-conventions/public-folder) — phục vụ static UI cùng ứng dụng.
+- [esbuild browser bundling](https://esbuild.github.io/api/#bundle) — Tùng build bridge, không bắt máy UI cài bundler.
