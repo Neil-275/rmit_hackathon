@@ -208,13 +208,13 @@ small { font-size: 12px; }
 .vote-context dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .more-note { font-size: 13px; margin-bottom: 12px; }
 .roster-hash { font-size: 12px; margin-top: 2px; }
-.roster-hash code { font-size: 12px; }
+.roster-hash code { font-size: 12px; overflow-wrap: anywhere; }
 .assignment { margin: 16px 0 0; }
-.vote-footnote { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.expiry { white-space: nowrap; }
+.vote-footnote { flex-wrap: wrap; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .vote-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .vote-actions > small { flex: 1; color: var(--muted); font-size: 12px; }
-.member-grid { display: flex; flex-wrap: wrap; gap: var(--gap); margin-bottom: 20px; }
-.member-grid > .member-card { flex: 1 1 calc(33.333% - 8px); }
+.member-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--gap); margin-bottom: 20px; }
 .member-card { padding: 20px; }
 .member-card h3 { font-size: 14px; margin-top: 12px; }
 .member-card > .muted { font-size: 12px; margin: 4px 0 12px; }
@@ -243,7 +243,7 @@ dialog::backdrop { background: #0006; }
 #page-content:focus { outline: none; }
 .field-hint { display: flex; align-items: flex-start; gap: 6px; margin: -8px 0 16px; font-size: 12px; color: var(--warning); }
 .field-hint > svg { margin-top: 2px; }
-.mini-check:has(input:disabled), .council-editor select:disabled { opacity: .45; }
+.council-editor-row:not(.is-member) .mini-check, .council-editor-row:not(.is-member) select { visibility: hidden; }
 .check-field { display: flex; align-items: flex-start; gap: 10px; color: var(--muted); font-size: 13px; padding: 8px 0; line-height: 1.7; }
 input[type="checkbox"] { accent-color: var(--ink); width: 16px; height: 16px; flex: none; }
 .check-field input { margin-top: 4px; }
@@ -295,7 +295,7 @@ input[type="checkbox"] { accent-color: var(--ink); width: 16px; height: 16px; fl
 }
 @media (max-width: 850px) {
   .overview-columns { grid-template-columns: 1fr; }
-  .member-grid > .member-card { flex-basis: calc(50% - 6px); }
+  .member-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
   .topbar { padding: 8px 16px; min-height: 60px; gap: 8px; }
@@ -360,6 +360,7 @@ input[type="checkbox"] { accent-color: var(--ink); width: 16px; height: 16px; fl
   .person-option, .mini-check, .member-choice { min-height: 44px; }
   .council-editor-row { grid-template-columns: 1fr 1fr; gap: 8px; }
   .member-choice, .council-editor-row > select { grid-column: 1 / -1; }
+  .council-editor-row:not(.is-member) .mini-check, .council-editor-row:not(.is-member) select { display: none; }
   .council-editor select { min-height: 44px; }
   .field-grid { grid-template-columns: 1fr; }
   .field input, .field textarea, .field select { font-size: 16px; min-height: 44px; }
