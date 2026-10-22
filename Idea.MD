@@ -91,3 +91,22 @@ Nhân vật: **An** (kỹ sư), **Bình** (trưởng nhóm), **Chi** (giám đ�
 - [UVM – Reporting, Non-Retaliation](https://www.uvm.edu/~complian/Newsletter/Winter2016/Helpline.html)
 - [Halliburton: revealing whistleblower's identity is adverse action](https://whistleblowersblog.org/2014/11/articles/sox-whistleblowers/halliburton-revealing-whistleblowers-identity-to-colleagues-is-adverse-action)
 - [Disclosing the Identity of a Complainant Can Constitute Retaliation (AFS Law)](https://www.afslaw.com/perspectives/alerts/disclosing-the-identity-complainant-can-constitute-retaliation-under-the)
+
+## 1. Vấn đề (Cập nhật)
+
+| | Tố giác sai phạm | Đóng góp ý tưởng |
+|---|---|---|
+| **Rủi ro cho người nói** | **Bị lộ danh tính** → bị trả đũa (đặc biệt khi người bị tố nằm trong ban kiểm soát) | **1. Sợ bị chê cười** nếu ý tưởng bị chê bất khả thi<br>**2. Bị xóa tên** → mất công trạng nếu ý tưởng tốt |
+| **Ai gây ra** | Người có quyền tra danh tính (HR, IT, lãnh đạo, thành viên hội đồng bị tố cáo) | Cấp trên trực tiếp hoặc người đánh giá (định kiến cá nhân hoặc chiếm đoạt công trạng) |
+| **Hệ quả** | Không ai dám báo cáo sai phạm của cấp trên | Nhân viên giữ im lặng, không dám đề xuất ý tưởng đột phá |
+
+## 3. Giải pháp (Cập nhật cơ chế)
+
+1. **Sealed-Credited Idea (Sáng kiến bảo chứng kép):**
+   - **Lúc gửi & đánh giá:** Danh tính tác giả được mã hóa (niêm phong). Cấp trên đánh giá "mù" hoàn toàn dựa trên giá trị ý tưởng, không định kiến.
+   - **Nếu bị từ chối:** Danh tính **mãi mãi không được giải mã** → Nhân viên không bao giờ sợ bị chê cười hay đánh giá thấp vì ý tưởng chưa khả thi.
+   - **Nếu được duyệt:** Điều kiện chính sách TideCloak thỏa mãn → Hệ thống mở khóa chữ ký tác giả gốc, ghi nhận rõ: *"Người khởi xướng: A · Người đề cử: B"*. B không thể sửa hay xóa tên A.
+2. **Protected Report với Hội đồng ngẫu nhiên chống xung đột lợi ích (CoI-Free Random Jury):**
+   - Khi báo cáo sai phạm, nếu người bị tố cáo nằm trong danh sách Hội đồng đạo đức (Ethics Pool), hệ thống **tự động loại trừ** người đó.
+   - Hệ thống **chọn ngẫu nhiên** một nhóm thành viên (ví dụ 3 người) từ những người không liên quan trong Pool để lập Hội đồng xử lý vụ việc.
+   - Danh tính người báo cáo chỉ được giải mã bởi TideCloak khi đạt **đủ ngưỡng phê duyệt (2/3)** từ đúng nhóm ngẫu nhiên này. CEO, IT Admin và người bị tố cáo hoàn toàn bị chặn.
