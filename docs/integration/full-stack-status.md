@@ -23,6 +23,10 @@ row under "In progress" and push before you begin, so nobody duplicates work.**
 
 ## Done and pushed
 
+- **Claude** — UI fixes found while recording the demo: approval toast no longer claims the author refused consent when
+  credit is simply not published yet; report detail hides "Request identity review" while a round is open or granted.
+  UI **67/67**.
+
 - **Claude** — merged master `fb83648` (council governance: persisted proposals, old-roster voter selection, shared
   voting, atomic apply). Kept master's council-locked voting transaction and STALE handling. Wired council apply end to
   end (runtime → HTTP → service); HTTP apply stays `POLICY_UNAVAILABLE` unless `VOICEVAULT_AUTH_MODE=simulated`, like

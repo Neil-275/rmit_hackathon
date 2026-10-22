@@ -639,3 +639,15 @@ test('a runtime that declares council changes absent shows a note and keeps repo
   assert.match(await page.evaluate('document.querySelector("[data-feature-off=changes]").textContent'),/not available in this build/);
   assert.match(await page.evaluate('document.querySelector("[data-metric-page=votes]").innerText'),/Votes awaiting you\s+3/);
 });
+
+test('approval without published credit does not claim the author refused consent, and open rounds hide a second request',async()=>{
+  await persona('chi');await nav('ideas');
+  await page.evaluate(`window.VoiceVaultRuntime.decideIdea=async(id,input)=>({ok:true,contractVersion:'v1',data:{id,status:'APPROVED',publicCredit:null}});`);
+  await page.evaluate(`[...document.querySelectorAll('#page-content button')].find(b=>b.textContent==='Approve').click()`);
+  await page.evaluate('document.querySelector("dialog form").requestSubmit()');
+  await page.waitFor('document.querySelector(".toast")');
+  assert.doesNotMatch(await page.evaluate('document.querySelector(".toast").innerText'),/did not consent/);
+  await persona('frank');await nav('reports');
+  await page.evaluate(`[...document.querySelectorAll('.report-card')].find(c=>c.querySelector('h3').textContent==='Review supplier selection').querySelector('button').click()`);
+  assert.equal(await page.evaluate('document.querySelectorAll("dialog [data-action=request-unmask]").length'),0);
+});
