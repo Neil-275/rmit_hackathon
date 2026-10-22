@@ -255,8 +255,12 @@ export function createVoiceVaultLive(options: LiveOptions) {
       const s = seg(id);
       return s ? request("POST", `/ideas/${s}/endorse`, { contractVersion: CONTRACT_VERSION, expectedVersion }) : badId();
     }),
-    listCouncilChanges: outOfScope("listCouncilChanges"),
-    submitCouncilChange: outOfScope("submitCouncilChange"),
+    listCouncilChanges: safe(async (query?: unknown) => request("GET", `/council/change-requests${qs(query)}`)),
+    submitCouncilChange: safe(async (input?: unknown) => {
+      const f = isObj(input) ? input : {};
+      return request("POST", "/council/change-requests", { contractVersion: CONTRACT_VERSION, expectedCouncilVersion: f.expectedCouncilVersion,
+        reason: f.reason, proposedMembers: f.proposedMembers, proposedSelectionPolicy: f.proposedSelectionPolicy });
+    }),
     applyCouncilChange: outOfScope("applyCouncilChange"),
   };
   return runtime;

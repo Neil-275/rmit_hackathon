@@ -13,9 +13,10 @@ import {
 } from "../../contracts/api";
 import { hashCiphertext, hashIdeaV1, hashReportV1 } from "../../contracts/encoding";
 import { computeEligible, selectVotingAssignment, type DrawInt, type EligibleVoter, type VotingAssignment } from "../domain/council";
-import { canCast, tally, type VotingState } from "../domain/voting";
+import { canCast, isTerminal, tally, type VotingState } from "../domain/voting";
 import { decideIdeaTransition, ideaIdentityOpenable, initialReportStatus, type IdeaStatus, type ReportStatus } from "../domain/lifecycle";
 import type { Roster } from "../roster";
+import { createCouncilServices } from "./council";
 
 export interface ServiceDeps {
   prisma: PrismaClient;
@@ -65,7 +66,6 @@ export function createServices(deps: ServiceDeps) {
   const personaOf = (subject: string) => roster.personas.find((p) => p.subject === subject);
   const displayNameOf = (subject: string) =>
     roster.directory.find((p) => p.id === subject)?.displayName ?? personaOf(subject)?.displayName ?? subject;
-  const isCouncilMember = (subject: string) => roster.council.members.some((m) => m.subject === subject && m.active);
 
   const guardOrg = (actor: Actor | null | undefined): ApiResult<never> | null => {
     if (!actor || typeof actor.subject !== "string" || !actor.subject) return unauthenticated();
@@ -76,8 +76,8 @@ export function createServices(deps: ServiceDeps) {
   async function audit(e: {
     action: string; resourceKind?: ResourceKind | null; resourceId?: string | null;
     result?: "OK" | "DENIED" | "ERROR"; actorSubject?: string | null;
-  }) {
-    await prisma.auditEvent.create({
+  }, db: Pick<PrismaClient, "auditEvent"> = prisma) {
+    await db.auditEvent.create({
       data: {
         id: newId(), organizationId: roster.organizationId, action: e.action,
         resourceKind: e.resourceKind ?? null, resourceId: e.resourceId ?? null,
@@ -110,10 +110,10 @@ export function createServices(deps: ServiceDeps) {
   const assignmentOf = (row: ReportRow): VotingAssignment | null =>
     row.assignmentJson ? (JSON.parse(row.assignmentJson) as VotingAssignment) : null;
 
-  const reportView = (row: ReportRow, actor: Actor): ReportView => {
+  const reportView = (row: ReportRow, actor: Actor, currentVersion = row.councilVersion): ReportView => {
     const assignment = assignmentOf(row);
     const capabilities: string[] = [];
-    if (assignment?.voters.some((v) => v.id === actor.subject) && row.status === "INVESTIGATING") capabilities.push("requestUnmask");
+    if (row.councilVersion === currentVersion && assignment?.voters.some((v) => v.id === actor.subject) && row.status === "INVESTIGATING") capabilities.push("requestUnmask");
     return {
       id: row.id, version: row.version, status: row.status as ReportStatus, title: row.title,
       evidenceDetails: row.evidenceDetails, accusedPersonIds: JSON.parse(row.accusedJson) as string[],
@@ -137,7 +137,7 @@ export function createServices(deps: ServiceDeps) {
     const t = tally(snap, now());
     const capabilities: string[] = [];
     if (canCast(snap, actor.subject, now()).ok) capabilities.push("vote");
-    if (t.state === "READY" && row.recipientSubject === actor.subject) capabilities.push("revealIdentity");
+    if (row.operation === "REVEAL_REPORT_IDENTITY" && t.state === "READY" && row.recipientSubject === actor.subject) capabilities.push("revealIdentity");
     return {
       id: row.id, version: row.version, operation: row.operation as VotingRequestView["operation"],
       resourceKind: row.resourceKind as ResourceKind, resourceId: row.resourceId, state: t.state,
@@ -170,6 +170,8 @@ export function createServices(deps: ServiceDeps) {
 
   // ---------- Session / directory / council ----------
 
+  const council = createCouncilServices({ prisma, roster, now, drawInt, newId, votingTtlMs }, { guard: guardOrg, votingView });
+
   async function getMe(actor: Actor): Result<SessionView> {
     const denied = guardOrg(actor);
     if (denied) return denied;
@@ -178,7 +180,10 @@ export function createServices(deps: ServiceDeps) {
     if (hasRole(actor, "manager")) capabilities.add("endorseIdea");
     if (hasRole(actor, "director")) { capabilities.add("decideIdea"); capabilities.add("revealIdeaIdentity"); }
     if (isOversight(actor)) capabilities.add("viewAudit");
-    if (isCouncilMember(actor.subject)) capabilities.add("vote");
+    const current = await council.effectiveRoster();
+    const member = current.council.members.some(m => m.subject === actor.subject && m.active);
+    if (member) capabilities.add("vote");
+    if (member || hasRole(actor, "it_admin")) capabilities.add("proposeCouncilChange");
     return ok({
       authenticated: true, subject: actor.subject, displayName: displayNameOf(actor.subject),
       organizationId: actor.organizationId, roles: [...actor.roles], capabilities: [...capabilities],
@@ -192,13 +197,7 @@ export function createServices(deps: ServiceDeps) {
   }
 
   async function getCouncil(actor: Actor): Result<CouncilView> {
-    const denied = guardOrg(actor);
-    if (denied) return denied;
-    return ok({
-      version: roster.council.version, rosterHash: roster.rosterHash,
-      members: roster.council.members.map((m) => ({ ...m })),
-      selectionPolicy: { ...roster.council.selectionPolicy },
-    });
+    return council.getCouncil(actor);
   }
 
   // ---------- Ideas ----------
@@ -336,7 +335,8 @@ export function createServices(deps: ServiceDeps) {
       where: { organizationId: roster.organizationId, ...(q.value.status ? { status: q.value.status } : {}) },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
     })).filter((r) => canSeeReport(r, actor));
-    return ok(paginate(rows.slice(offset, offset + q.value.limit + 1).map((r) => reportView(r, actor)), q.value.limit, offset));
+    const current = await council.effectiveRoster();
+    return ok(paginate(rows.slice(offset, offset + q.value.limit + 1).map((r) => reportView(r, actor, current.council.version)), q.value.limit, offset));
   }
 
   async function getReport(actor: Actor, id: string): Result<ReportView> {
@@ -344,7 +344,7 @@ export function createServices(deps: ServiceDeps) {
     if (denied) return denied;
     const row = await prisma.report.findFirst({ where: { id: String(id ?? "").toLowerCase(), organizationId: roster.organizationId } });
     // Không được đọc thì trả NOT_FOUND để không lộ sự tồn tại.
-    return row && canSeeReport(row, actor) ? ok(reportView(row, actor)) : fail("NOT_FOUND", "không tìm thấy phản ánh");
+    return row && canSeeReport(row, actor) ? ok(reportView(row, actor, (await council.effectiveRoster()).council.version)) : fail("NOT_FOUND", "không tìm thấy phản ánh");
   }
 
   async function createReport(actor: Actor, input: unknown): Result<ReportView> {
@@ -365,33 +365,37 @@ export function createServices(deps: ServiceDeps) {
     if ((await hashCiphertext(dto.identityEnvelope.ciphertext)) !== dto.identityEnvelope.ciphertextHash) {
       return fail("INTEGRITY_MISMATCH", "ciphertextHash không khớp");
     }
-    const existing = await prisma.report.findUnique({ where: { id: dto.id } });
-    if (existing) {
-      // Retry không bốc lại hội đồng.
-      return existing.contentHash === contentHash && existing.organizationId === roster.organizationId
-        ? ok(reportView(existing, actor))
-        : fail("VERSION_CONFLICT", "id đã tồn tại");
-    }
-    const eligible = computeEligible(roster.council.members, dto.accusedPersonIds, roster.directory);
-    if (!eligible.ok) return fail("INVALID_REQUEST", eligible.message);
-    const selection = selectVotingAssignment(eligible.value.eligible, roster.council.selectionPolicy, drawInt);
-    if (!selection.ok && selection.code !== "INSUFFICIENT_ELIGIBLE_JURORS") return fail("INVALID_REQUEST", selection.message);
-    const assignment = selection.ok ? selection.value : null;
-    const status = initialReportStatus(assignment !== null);
-    const row = await prisma.report.create({
-      data: {
-        id: dto.id, organizationId: roster.organizationId, contentVersion: 1,
-        title: dto.title, evidenceDetails: dto.evidenceDetails, accusedJson: JSON.stringify(dto.accusedPersonIds),
-        contentHash, identityEnvelope: JSON.stringify(dto.identityEnvelope),
-        ciphertextHash: dto.identityEnvelope.ciphertextHash, policyVersion: b.policyVersion, status,
-        councilVersion: roster.council.version, councilRosterHash: roster.rosterHash,
-        assignmentJson: assignment ? JSON.stringify(assignment) : null,
-        excludedJson: JSON.stringify(eligible.value.excluded), createdAt: now(),
-      },
+    await council.ensure();
+    return prisma.$transaction(async tx => {
+      const current = await council.lock(tx);
+      const existing = await tx.report.findUnique({ where: { id: dto.id } });
+      if (existing) {
+        // Retry không bốc lại hội đồng.
+        return existing.contentHash === contentHash && existing.organizationId === roster.organizationId
+          ? ok(reportView(existing, actor, current.council.version))
+          : fail("VERSION_CONFLICT", "id đã tồn tại");
+      }
+      const eligible = computeEligible(current.council.members, dto.accusedPersonIds, roster.directory);
+      if (!eligible.ok) return fail("INVALID_REQUEST", eligible.message);
+      const selection = selectVotingAssignment(eligible.value.eligible, current.council.selectionPolicy, drawInt);
+      if (!selection.ok && selection.code !== "INSUFFICIENT_ELIGIBLE_JURORS") return fail("INVALID_REQUEST", selection.message);
+      const assignment = selection.ok ? selection.value : null;
+      const status = initialReportStatus(assignment !== null);
+      const row = await tx.report.create({
+        data: {
+          id: dto.id, organizationId: roster.organizationId, contentVersion: 1,
+          title: dto.title, evidenceDetails: dto.evidenceDetails, accusedJson: JSON.stringify(dto.accusedPersonIds),
+          contentHash, identityEnvelope: JSON.stringify(dto.identityEnvelope),
+          ciphertextHash: dto.identityEnvelope.ciphertextHash, policyVersion: b.policyVersion, status,
+          councilVersion: current.council.version, councilRosterHash: current.rosterHash,
+          assignmentJson: assignment ? JSON.stringify(assignment) : null,
+          excludedJson: JSON.stringify(eligible.value.excluded), createdAt: now(),
+        },
+      });
+      await audit({ action: assignment ? "REPORT_SUBMITTED" : "REPORT_AWAITING_ELIGIBLE_JURY", resourceKind: "REPORT", resourceId: row.id }, tx);
+      // Người nộp không nằm trong assignment nên view trả cho họ không có capability nào.
+      return ok(reportView(row, actor, current.council.version));
     });
-    await audit({ action: assignment ? "REPORT_SUBMITTED" : "REPORT_AWAITING_ELIGIBLE_JURY", resourceKind: "REPORT", resourceId: row.id });
-    // Người nộp không nằm trong assignment nên view trả cho họ không có capability nào.
-    return ok(reportView(row, actor));
   }
 
   async function createUnmaskRequest(actor: Actor, reportId: string, input: unknown): Result<UnmaskRequestView> {
@@ -402,6 +406,7 @@ export function createServices(deps: ServiceDeps) {
     const report = await prisma.report.findFirst({ where: { id: String(reportId ?? "").toLowerCase(), organizationId: roster.organizationId } });
     if (!report || !canSeeReport(report, actor)) return fail("NOT_FOUND", "không tìm thấy phản ánh");
     const assignment = assignmentOf(report);
+    if (report.councilVersion !== (await council.effectiveRoster()).council.version) return fail("COUNCIL_VERSION_CONFLICT", "Report assignment uses a stale council.");
     if (!assignment) return fail("INSUFFICIENT_ELIGIBLE_JURORS", "phản ánh đang chờ đủ hội đồng hợp lệ");
     if (!assignment.voters.some((x) => x.id === actor.subject)) return fail("FORBIDDEN", "chỉ juror được bốc mới tạo yêu cầu mở");
     if (report.status !== "INVESTIGATING") return fail("VERSION_CONFLICT", `phản ánh đang ${report.status}`);
@@ -425,6 +430,8 @@ export function createServices(deps: ServiceDeps) {
     }
     const id = newId();
     const created = await prisma.$transaction(async (tx) => {
+      const current = await council.lock(tx);
+      if (report.councilVersion !== current.council.version) return "STALE" as const;
       // Claim this report version before creating a round. A losing caller writes nothing.
       const claimed = await tx.report.updateMany({
         where: {
@@ -444,10 +451,11 @@ export function createServices(deps: ServiceDeps) {
           nonce: newId(), expiresAt: new Date(now().getTime() + votingTtlMs), createdAt: now(),
         },
       });
+      await audit({ action: "UNMASK_REQUEST_CREATED", resourceKind: "REPORT", resourceId: report.id, actorSubject: actor.subject }, tx);
       return true;
     });
+    if (created === "STALE") return fail("COUNCIL_VERSION_CONFLICT", "Report assignment uses a stale council.");
     if (!created) return fail("VERSION_CONFLICT", "The report changed. Reload and try again.", { retryable: true });
-    await audit({ action: "UNMASK_REQUEST_CREATED", resourceKind: "REPORT", resourceId: report.id, actorSubject: actor.subject });
     const row = (await findVoting(id))!;
     return ok({ ...votingView(row, actor), votingRequestId: id, reportId: report.id });
   }
@@ -455,24 +463,29 @@ export function createServices(deps: ServiceDeps) {
   async function getReportIdentityEnvelope(actor: Actor, reportId: string, votingRequestId: string): Result<IdentityEnvelopeResponse> {
     const denied = guardOrg(actor);
     if (denied) return denied;
-    const report = await prisma.report.findFirst({ where: { id: String(reportId ?? "").toLowerCase(), organizationId: roster.organizationId } });
-    const row = votingRequestId ? await findVoting(String(votingRequestId)) : null;
-    if (!report || !row || report.votingRequestId !== row.id || row.resourceKind !== "REPORT" || row.resourceId !== report.id || row.operation !== "REVEAL_REPORT_IDENTITY") {
-      return fail("NOT_FOUND", "không tìm thấy yêu cầu mở");
-    }
-    if (row.recipientSubject !== actor.subject) {
-      await audit({ action: "REPORT_IDENTITY_ENVELOPE_DENIED", resourceKind: "REPORT", resourceId: report.id, result: "DENIED", actorSubject: actor.subject });
-      return fail("FORBIDDEN", "chỉ recipient đã được vote mới mở được");
-    }
-    const state = tally(snapshotOf(row), now()).state;
-    if (state !== "READY") {
-      await audit({ action: "REPORT_IDENTITY_ENVELOPE_DENIED", resourceKind: "REPORT", resourceId: report.id, result: "DENIED", actorSubject: actor.subject });
-      if (state === "COLLECTING") return fail("QUORUM_PENDING", "chưa đủ T phiếu APPROVE có independent");
-      if (state === "EXPIRED") return fail("APPROVAL_EXPIRED", "yêu cầu đã hết hạn");
-      return fail("FORBIDDEN", `yêu cầu đã ${state}`);
-    }
-    await audit({ action: "REPORT_IDENTITY_ENVELOPE_RELEASED", resourceKind: "REPORT", resourceId: report.id, actorSubject: actor.subject });
-    return ok({ resourceKind: "REPORT", resourceId: report.id, envelope: JSON.parse(report.identityEnvelope) });
+    await council.ensure();
+    return prisma.$transaction(async tx => {
+      const current = await council.lock(tx);
+      const report = await tx.report.findFirst({ where: { id: String(reportId ?? "").toLowerCase(), organizationId: roster.organizationId } });
+      const row = votingRequestId ? await tx.votingRequest.findFirst({ where: { id: String(votingRequestId), organizationId: roster.organizationId }, include: { votes: true } }) : null;
+      if (!report || !row || report.votingRequestId !== row.id || row.resourceKind !== "REPORT" || row.resourceId !== report.id || row.operation !== "REVEAL_REPORT_IDENTITY") {
+        return fail("NOT_FOUND", "không tìm thấy yêu cầu mở");
+      }
+      if (row.recipientSubject !== actor.subject) {
+        await audit({ action: "REPORT_IDENTITY_ENVELOPE_DENIED", resourceKind: "REPORT", resourceId: report.id, result: "DENIED", actorSubject: actor.subject }, tx);
+        return fail("FORBIDDEN", "chỉ recipient đã được vote mới mở được");
+      }
+      if (row.councilVersion !== current.council.version) return fail("COUNCIL_VERSION_CONFLICT", "Voting authorization uses a stale council.");
+      const state = tally(snapshotOf(row), now()).state;
+      if (state !== "READY") {
+        await audit({ action: "REPORT_IDENTITY_ENVELOPE_DENIED", resourceKind: "REPORT", resourceId: report.id, result: "DENIED", actorSubject: actor.subject }, tx);
+        if (state === "COLLECTING") return fail("QUORUM_PENDING", "chưa đủ T phiếu APPROVE có independent");
+        if (state === "EXPIRED") return fail("APPROVAL_EXPIRED", "yêu cầu đã hết hạn");
+        return fail("FORBIDDEN", `yêu cầu đã ${state}`);
+      }
+      await audit({ action: "REPORT_IDENTITY_ENVELOPE_RELEASED", resourceKind: "REPORT", resourceId: report.id, actorSubject: actor.subject }, tx);
+      return ok({ resourceKind: "REPORT", resourceId: report.id, envelope: JSON.parse(report.identityEnvelope) });
+    });
   }
 
   // ---------- Voting ----------
@@ -489,46 +502,42 @@ export function createServices(deps: ServiceDeps) {
       include: { votes: { orderBy: { id: "asc" } } },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
     })) as VotingRow[]).filter((r) => (JSON.parse(r.votersJson) as EligibleVoter[]).some((v) => v.id === actor.subject));
-    return ok(paginate(rows.slice(offset, offset + q.value.limit + 1).map((r) => votingView(r, actor)), q.value.limit, offset));
+    const current = await council.effectiveRoster();
+    return ok(paginate(rows.slice(offset, offset + q.value.limit + 1).map((r) => votingView(r.councilVersion !== current.council.version && !isTerminal(r.state as VotingState) ? { ...r, state: "STALE" } : r, actor)), q.value.limit, offset));
   }
 
   async function getVotingRequest(actor: Actor, id: string): Result<VotingRequestView> {
     const denied = guardOrg(actor);
     if (denied) return denied;
     const row = await findVoting(String(id ?? ""));
-    return row && canSeeVoting(row, actor) ? ok(votingView(row, actor)) : fail("NOT_FOUND", "không tìm thấy yêu cầu vote");
+    if (!row || !canSeeVoting(row, actor)) return fail("NOT_FOUND", "Voting request not found.");
+    const current = await council.effectiveRoster();
+    return ok(votingView(row.councilVersion !== current.council.version && !isTerminal(row.state as VotingState) ? { ...row, state: "STALE" } : row, actor));
   }
 
   async function castVote(actor: Actor, id: string, input: unknown): Result<VotingRequestView> {
     const denied = guardOrg(actor);
     if (denied) return denied;
-    const row = await findVoting(String(id ?? ""));
-    if (!row || !canSeeVoting(row, actor)) return fail("NOT_FOUND", "không tìm thấy yêu cầu vote");
-    const v = validateSubmitApprovalRequest(input, row.id);
+    const v = validateSubmitApprovalRequest(input, String(id ?? ""));
     if (!v.ok) return fail("INVALID_REQUEST", v.message);
-    const check = canCast(snapshotOf(row), actor.subject, now());
-    if (!check.ok) return fail(check.code, check.message);
-    try {
-      await prisma.vote.create({
+    await council.ensure();
+    return prisma.$transaction(async tx => {
+      const current = await council.lock(tx);
+      const row = await tx.votingRequest.findFirst({ where: { id: String(id ?? ""), organizationId: roster.organizationId }, include: { votes: true } });
+      if (!row || !canSeeVoting(row, actor)) return fail("NOT_FOUND", "Voting request not found.");
+      if (row.councilVersion !== current.council.version) return fail("COUNCIL_VERSION_CONFLICT", "Voting authorization uses a stale council.");
+      const check = canCast(snapshotOf(row), actor.subject, now());
+      if (!check.ok) return fail(check.code, check.message);
+      await tx.vote.create({
         data: { votingRequestId: row.id, voterSubject: actor.subject, decision: v.value.decision, reason: v.value.reason, createdAt: now() },
       });
-    } catch (e) {
-      if ((e as { code?: string }).code === "P2002") return fail("FORBIDDEN", "đã bỏ phiếu");
-      throw e;
-    }
-    const fresh = (await findVoting(row.id))!;
-    const t = tally(snapshotOf(fresh), now());
-    if (t.state !== fresh.state) {
-      await prisma.votingRequest.updateMany({
-        where: { id: fresh.id, version: fresh.version },
-        data: { state: t.state, version: fresh.version + 1 },
-      });
-    }
-    await audit({ action: `VOTE_${v.value.decision}`, resourceKind: row.resourceKind as ResourceKind, resourceId: row.resourceId, actorSubject: actor.subject });
-    if (t.state !== fresh.state) {
-      await audit({ action: `VOTING_${t.state}`, resourceKind: row.resourceKind as ResourceKind, resourceId: row.resourceId });
-    }
-    return ok(votingView((await findVoting(row.id))!, actor));
+      const fresh = await tx.votingRequest.findUniqueOrThrow({ where: { id: row.id }, include: { votes: true } });
+      const t = tally(snapshotOf(fresh), now());
+      await tx.votingRequest.update({ where: { id: row.id }, data: { state: t.state, version: { increment: 1 } } });
+      await audit({ action: `VOTE_${v.value.decision}`, resourceKind: row.resourceKind as ResourceKind, resourceId: row.resourceId, actorSubject: actor.subject }, tx);
+      if (t.state !== row.state) await audit({ action: `VOTING_${t.state}`, resourceKind: row.resourceKind as ResourceKind, resourceId: row.resourceId }, tx);
+      return ok(votingView({ ...fresh, state: t.state, version: row.version + 1 }, actor));
+    });
   }
 
   // ---------- Audit ----------
@@ -554,6 +563,8 @@ export function createServices(deps: ServiceDeps) {
 
   return {
     getMe, getDirectory, getCouncil,
+    submitCouncilChange: council.submitCouncilChange, getCouncilChange: council.getCouncilChange,
+    listCouncilChanges: council.listCouncilChanges, applyCouncilChange: council.applyCouncilChange,
     listIdeas, getIdea, createIdea, endorseIdea, decideIdea, getIdeaIdentityEnvelope,
     listReports, getReport, createReport, createUnmaskRequest, getReportIdentityEnvelope,
     listMyVotingRequests, getVotingRequest, castVote,

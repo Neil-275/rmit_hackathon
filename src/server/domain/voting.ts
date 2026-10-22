@@ -2,7 +2,7 @@
 // Thuần: nhận snapshot assignment + phiếu đã lưu, trả trạng thái suy ra. Không I/O.
 import type { EligibleVoter } from "./council";
 
-export type VotingState = "COLLECTING" | "READY" | "DENIED" | "EXPIRED" | "STALE";
+export type VotingState = "COLLECTING" | "READY" | "DENIED" | "EXPIRED" | "STALE" | "APPLIED";
 export type VoteDecision = "APPROVE" | "DENY";
 
 export interface StoredVote {
@@ -26,7 +26,7 @@ export interface Tally {
 }
 
 /** Trạng thái không bao giờ quay lại COLLECTING. READY cũng đóng việc nhận phiếu. */
-export const isTerminal = (s: VotingState): boolean => s === "DENIED" || s === "EXPIRED" || s === "STALE";
+export const isTerminal = (s: VotingState): boolean => s === "DENIED" || s === "EXPIRED" || s === "STALE" || s === "APPLIED";
 
 export function tally(snapshot: VotingSnapshot, now: Date): Tally {
   const assigned = new Map(snapshot.voters.map((v) => [v.id, v]));

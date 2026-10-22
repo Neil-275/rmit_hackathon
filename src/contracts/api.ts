@@ -43,7 +43,7 @@ export type Role = "employee" | "manager" | "director" | "auditor" | "it_admin";
 
 export type IdeaStatus = "UNDER_REVIEW" | "ENDORSED" | "APPROVED" | "REJECTED";
 export type ReportStatus = "AWAITING_ELIGIBLE_JURY" | "INVESTIGATING" | "RESOLVED";
-export type VotingState = "COLLECTING" | "READY" | "DENIED" | "EXPIRED" | "STALE";
+export type VotingState = "COLLECTING" | "READY" | "DENIED" | "EXPIRED" | "STALE" | "APPLIED";
 export type VoteDecision = "APPROVE" | "DENY";
 export type IdeaDecision = "APPROVE" | "REJECT";
 
@@ -198,6 +198,31 @@ export interface CouncilView {
   rosterHash: string;
   members: CouncilMemberView[];
   selectionPolicy: { minVoters: number; maxVoters: number };
+  capabilities?: string[];
+}
+
+export interface CouncilChangeRequest {
+  contractVersion: ContractVersion;
+  expectedCouncilVersion: number;
+  reason: string;
+  proposedMembers: Omit<CouncilMemberView, "displayName">[];
+  proposedSelectionPolicy: CouncilView["selectionPolicy"];
+}
+
+export interface CouncilChangeView {
+  id: string;
+  state: VotingState | "AWAITING_ELIGIBLE_JURY";
+  baseCouncilVersion: number;
+  proposedMembers: CouncilMemberView[];
+  proposedSelectionPolicy: CouncilView["selectionPolicy"];
+  diff: { added: string[]; removed: string[]; changed: string[] };
+  reason: string;
+  payloadHash: string;
+  votingRequestId: string | null;
+  voting: VotingRequestView | null;
+  capabilities: string[];
+  appliedCouncilVersion: number | null;
+  createdAt: string;
 }
 
 export interface DirectoryView {
@@ -358,6 +383,10 @@ export const ROUTES: readonly RouteSpec[] = [
   { method: "GET", path: "/voting-requests/:id", service: "getVotingRequest", response: "VotingRequestView" },
   { method: "POST", path: "/voting-requests/:id/approvals", service: "castVote", request: "SubmitApprovalRequest", response: "VotingRequestView" },
   { method: "GET", path: "/council", service: "getCouncil", response: "CouncilView" },
+  { method: "GET", path: "/council/change-requests", service: "listCouncilChanges", response: "Page<CouncilChangeView>" },
+  { method: "POST", path: "/council/change-requests", service: "submitCouncilChange", request: "CouncilChangeRequest", response: "CouncilChangeView" },
+  { method: "GET", path: "/council/change-requests/:id", service: "getCouncilChange", response: "CouncilChangeView" },
+  { method: "POST", path: "/council/change-requests/:id/apply", service: "applyCouncilChange", request: "expectedCouncilVersion", response: "CouncilChangeView" },
   { method: "GET", path: "/audit", service: "listAudit", request: "ListQuery(query)", response: "Page<AuditEventView>" },
 ] as const;
 
@@ -485,6 +514,37 @@ export function validateCreateReportRequest(v: unknown): Validation<CreateReport
       accusedPersonIds: [...new Set(accused as string[])].sort(),
       identityEnvelope: envelope(o.identityEnvelope, "REPORT", id),
     };
+  });
+}
+
+export function validateCouncilVersionRequest(v: unknown): Validation<{ expectedCouncilVersion: number }> {
+  return run(() => {
+    const o = body(v);
+    need(Number.isSafeInteger(o.expectedCouncilVersion) && (o.expectedCouncilVersion as number) >= 1 && (o.expectedCouncilVersion as number) < 2_147_483_647, "expectedCouncilVersion");
+    return { expectedCouncilVersion: o.expectedCouncilVersion as number };
+  });
+}
+
+export function validateCouncilChangeRequest(v: unknown): Validation<CouncilChangeRequest> {
+  return run(() => {
+    const o = body(v), version = validateCouncilVersionRequest(v);
+    need(version.ok, "expectedCouncilVersion");
+    need(Array.isArray(o.proposedMembers) && o.proposedMembers.length >= 3 && o.proposedMembers.length <= 12, "proposedMembers: 3..12");
+    const members = (o.proposedMembers as unknown[]).map(value => {
+      need(isObject(value), "member"); const m = value as Record<string, unknown>;
+      need(m.membershipRole === "MEMBER" || m.membershipRole === "CHAIR", "membershipRole");
+      need(typeof m.independent === "boolean" && typeof m.active === "boolean", "member flags");
+      return { subject: text(m.subject, "subject", 128), membershipRole: m.membershipRole as "MEMBER" | "CHAIR", independent: m.independent as boolean, active: m.active as boolean };
+    });
+    need(new Set(members.map(m => m.subject)).size === members.length, "duplicate members");
+    need(isObject(o.proposedSelectionPolicy), "proposedSelectionPolicy");
+    const p = o.proposedSelectionPolicy as Record<string, unknown>;
+    need(Number.isInteger(p.minVoters) && Number.isInteger(p.maxVoters) && (p.minVoters as number) >= 3 && (p.maxVoters as number) <= 5 && (p.minVoters as number) <= (p.maxVoters as number), "3 <= minVoters <= maxVoters <= 5");
+    const active = members.filter(m => m.active);
+    need(active.length >= (p.minVoters as number) && active.some(m => m.independent), "Insufficient active members or independent representative");
+    return { contractVersion: CONTRACT_VERSION, expectedCouncilVersion: (version as { ok: true; value: { expectedCouncilVersion: number } }).value.expectedCouncilVersion,
+      reason: text(o.reason, "reason", LIMITS.reason, 10), proposedMembers: members,
+      proposedSelectionPolicy: { minVoters: p.minVoters as number, maxVoters: p.maxVoters as number } };
   });
 }
 

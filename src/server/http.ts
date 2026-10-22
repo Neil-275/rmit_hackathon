@@ -55,7 +55,7 @@ export function createHttpHandler(deps: Partial<HttpDeps> = {}) {
       // An APP vote/status cannot authorize cryptographic identity release. Also
       // block submissions until envelope provenance is verifiable: a TIDE_V1 tag,
       // ciphertext hash, or client-provided stub:base64 is not proof of encryption.
-      if (route.service.endsWith("IdentityEnvelope") || route.service === "createIdea" || route.service === "createReport") return json(unavailable());
+      if (route.service.endsWith("IdentityEnvelope") || route.service === "createIdea" || route.service === "createReport" || route.service === "applyCouncilChange") return json(unavailable());
       let input: unknown;
       if (request.method === "POST") {
         try { input = await request.json(); } catch {
@@ -73,6 +73,9 @@ export function createHttpHandler(deps: Partial<HttpDeps> = {}) {
         case "getMe": result = await service.getMe(actor); break;
         case "getDirectory": result = await service.getDirectory(actor); break;
         case "getCouncil": result = await service.getCouncil(actor); break;
+        case "submitCouncilChange": result = await service.submitCouncilChange(actor, input); break;
+        case "listCouncilChanges": result = await service.listCouncilChanges(actor, query); break;
+        case "getCouncilChange": result = await service.getCouncilChange(actor, id); break;
         case "listIdeas": result = await service.listIdeas(actor, query); break;
         case "getIdea": result = await service.getIdea(actor, id); break;
         case "endorseIdea": result = await service.endorseIdea(actor, id, input); break;
@@ -86,7 +89,7 @@ export function createHttpHandler(deps: Partial<HttpDeps> = {}) {
         case "listAudit": result = await service.listAudit(actor, query); break;
         default: return json(unavailable());
       }
-      return json(result, route.service === "createUnmaskRequest" ? 201 : 200);
+      return json(result, route.service === "createUnmaskRequest" || route.service === "submitCouncilChange" ? 201 : 200);
     } catch {
       return json(fail("POLICY_UNAVAILABLE", "Service is temporarily unavailable", { retryable: true }));
     }

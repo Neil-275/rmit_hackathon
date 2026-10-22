@@ -42,7 +42,7 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
       role: authenticated ? role : null, roles,
       organizationId: value.organizationId,
       // HTTP submissions remain locked until encrypted-envelope provenance is verified.
-      capabilities: { canSubmit: false, canProposeCouncil: false },
+      capabilities: { canSubmit: false, canProposeCouncil: authenticated && cap.includes("proposeCouncilChange") },
     };
   }
   function idea(data: unknown) {
@@ -90,6 +90,10 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
       capabilities: { canRequestUnmask: cap.includes("requestUnmask") },
     };
   }
+  function councilChange(data: unknown) {
+    const value = record(data);
+    return { ...value, id: value.id, status: value.state, voting: value.voting ? voting(value.voting) : null, capabilities: { canApply: false } };
+  }
   const runtime = {
     contractVersion: "v1", mode: "LIVE",
     init: () => mapped("init", [], session),
@@ -110,7 +114,7 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
     getVotingRequest: (id?: unknown) => mapped("getVotingRequest", [id], voting),
     listMyVotingRequests: (query?: unknown) => mapped("listMyVotingRequests", [query], (data) => page(data, voting)),
     castVote: (id?: unknown, input?: unknown) => mapped("castVote", [id, input], voting),
-    getCouncil: () => mapped("getCouncil", [], (data) => ({ ...record(data), capabilities: { canPropose: false } })),
+    getCouncil: () => mapped("getCouncil", [], (data) => { const value = record(data); return { ...value, capabilities: { canPropose: strings(value.capabilities).includes("propose") } }; }),
     listAudit: (query?: unknown) => mapped("listAudit", [query], (data) => page(data, (item) => {
       const value = record(item);
       return { id: value.id, action: value.action, targetId: value.resourceId, enforcement: value.source, createdAt: value.occurredAt, actor: "Recorded action", outcome: value.result };
@@ -118,8 +122,8 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
     // No APP-only vote or director role can activate an unverified cryptographic release.
     revealIdentity: async (..._args: unknown[]) => unavailable(),
     endorseIdea: (id?: unknown, expectedVersion?: unknown) => mapped("endorseIdea", [id, expectedVersion], idea),
-    listCouncilChanges: async (..._args: unknown[]) => unavailable(),
-    submitCouncilChange: async (..._args: unknown[]) => unavailable(),
+    listCouncilChanges: (query?: unknown) => mapped("listCouncilChanges", [query], (data) => page(data, councilChange)),
+    submitCouncilChange: (input?: unknown) => mapped("submitCouncilChange", [input], councilChange),
     applyCouncilChange: async (..._args: unknown[]) => unavailable(),
   };
   return runtime;
