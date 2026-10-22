@@ -604,3 +604,28 @@ test('a failed persona change shows the error and restores the confirmed selecti
   assert.equal(await page.evaluate('document.getElementById("persona-select").value'),'an');
   assert.equal(await page.evaluate('document.getElementById("persona-name").textContent'),'An Nguyen');
 });
+
+test('a submission that fails after its dialog closes is still reported',async()=>{
+  await nav('ideas');await page.click('[data-action="new-idea"]');
+  await page.evaluate(`window.VoiceVaultRuntime.submitIdea=function(){return new Promise(resolve=>{window.failSubmit=()=>resolve({ok:false,contractVersion:'v1',error:{code:'POLICY_UNAVAILABLE',message:'Submission not saved.',enforcement:'SIMULATED',retryable:true}});});};`);
+  await fill('title','Idea that will fail');
+  await fill('description','A complete description long enough to pass the validation rules.');
+  await page.evaluate('document.querySelector("dialog form").requestSubmit()');
+  await page.waitFor('typeof window.failSubmit === "function"');
+  await page.click('dialog [data-dialog-close]');
+  await page.evaluate('window.failSubmit()');
+  await page.waitFor('document.querySelector(".toast.is-error")');
+  assert.match(await page.evaluate('document.querySelector(".toast.is-error").innerText'),/Submission not saved/);
+});
+
+test('votes search matches report evidence, purpose shows without a recipient, and council search does not claim no proposals',async()=>{
+  await persona('frank');await nav('votes');
+  await page.evaluate(`{const s=document.getElementById('search');s.value='purchasing records';s.dispatchEvent(new Event('input'))}`);
+  assert.equal(await page.evaluate('document.querySelectorAll(".vote-card").length'),1);
+  const html=await page.evaluate(`(()=>{const round={id:'r',resourceId:'x',operation:'REVEAL_REPORT_IDENTITY',voters:[],voterCount:3,quorumRequired:2,councilVersion:1,status:'COLLECTING',approvalCount:0,purpose:'Verify before legal review.'};return window.VoiceVaultView.votePanel({runtime:window.VoiceVaultRuntime,state:{directory:{people:[]},reports:{items:[]},changes:{items:[]}}},round).textContent;})()`);
+  assert.match(html,/Purpose\s*Verify before legal review/);
+  await page.evaluate(`window.VoiceVaultRuntime.submitCouncilChange({expectedCouncilVersion:1,reason:'Add Mai Tran as an independent member.',proposedMembers:[{subject:'eva',independent:false,active:true,membershipRole:'CHAIR'},{subject:'frank',independent:false,active:true,membershipRole:'MEMBER'},{subject:'grace',independent:true,active:true,membershipRole:'MEMBER'},{subject:'henry',independent:false,active:true,membershipRole:'MEMBER'},{subject:'iris',independent:false,active:true,membershipRole:'MEMBER'},{subject:'mai',independent:true,active:true,membershipRole:'MEMBER'}],proposedSelectionPolicy:{minVoters:3,maxVoters:5}})`);
+  await nav('council');
+  await page.evaluate(`{const s=document.getElementById('search');s.value='zzz-no-match';s.dispatchEvent(new Event('input'))}`);
+  assert.match(await page.evaluate('document.getElementById("page-content").innerText'),/No matching proposals/);
+});

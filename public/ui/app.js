@@ -8,16 +8,14 @@
     var init;try{init=await runtime.init();}catch(error){startupError('POLICY_UNAVAILABLE');return;}
     if(!init||!init.ok){startupError(init&&init.error?init.error.code:'CONTRACT_MISMATCH');return;}
     var state={page:navigation.some(function(p){return '#'+p.id===location.hash;})?location.hash.slice(1):'overview',search:'',session:init.data,ideas:{items:[]},reports:{items:[]},changes:{items:[]},audit:{items:[]},council:null,directory:{people:[]},results:{}};
-    var revision=0,toastTimer,acting=false;
+    var revision=0,toastTimer;
     var ctx={runtime:runtime,state:state,loading:true};
     ctx.notify=function(message,isError){var region=document.getElementById('toast-region');region.replaceChildren(h('div',{class:'toast'+(isError?' is-error':'')},V.icon(isError?'alert':'check',18),h('span',{},message)));clearTimeout(toastTimer);toastTimer=setTimeout(function(){region.replaceChildren();},5000);};
     ctx.call=async function(method,args){try{if(typeof runtime[method]!=='function')throw new Error('CONTRACT_MISMATCH');var result=await runtime[method].apply(runtime,args||[]);if(!result||result.contractVersion!=='v1'||typeof result.ok!=='boolean')throw new Error('CONTRACT_MISMATCH');return result;}catch(error){return {ok:false,contractVersion:'v1',error:{code:'POLICY_UNAVAILABLE',message:'The connection is unavailable. Please try again later.',enforcement:runtime.mode==='MOCK'?'SIMULATED':'APP',retryable:true}};}};
-    // One action at a time; the button shows progress and the refresh re-renders it either way.
+    // The clicked button is disabled while its action runs; the refresh re-renders it either way.
     ctx.act=async function(method,args,button,busyLabel){
-      if(acting)return null;acting=true;
       if(button){button.disabled=true;button.setAttribute('aria-busy','true');if(busyLabel)button.textContent=busyLabel;}
-      try{V.closeDialog();var result=await ctx.call(method,args);if(result.ok)ctx.notify('Your action has been recorded.');else ctx.notify(V.errorText(result.error),true);await ctx.refresh({keep:true});return result;}
-      finally{acting=false;}
+      V.closeDialog();var result=await ctx.call(method,args);if(result.ok)ctx.notify('Your action has been recorded.');else ctx.notify(V.errorText(result.error),true);await ctx.refresh({keep:true});return result;
     };
     var root=document.getElementById('app');root.replaceChildren();
     var sidebar=h('aside',{class:'sidebar',id:'sidebar','aria-label':'Main navigation'},h('a',{class:'brand',href:'#overview'},h('span',{class:'brand-mark'},'V'),h('span',{},h('strong',{},'VoiceVault'),h('small',{},'Every voice matters'))));

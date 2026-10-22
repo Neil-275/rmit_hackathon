@@ -21,9 +21,10 @@
   <a class="skip-link" href="#page-content">Skip to main content</a>
   <div id="app"><div class="startup"><span class="brand-mark">V</span><h1>VoiceVault</h1><p>Preparing your workspace...</p></div></div>
   <script>
-    // If sibling files are blocked (macOS folder privacy, Windows "blocked" downloads), say so instead of loading forever.
+    // file:// only: if sibling files are blocked (macOS folder privacy, Windows "blocked" downloads), say so instead of
+    // loading forever. HTTP(S) startup failures are reported by bootstrap.
     setTimeout(function(){
-      if(window.VoiceVaultUI&&window.VoiceVaultView)return;
+      if(location.protocol!=='file:'||document.body.dataset.appState!=='loading')return;
       var box=document.querySelector('#app .startup p');if(!box)return;
       box.textContent='The browser could not load the workspace files next to this page. On macOS, allow the browser to read this folder: System Settings → Privacy & Security → Files and Folders (or Full Disk Access), then restart the browser. On Windows, extract the ZIP before opening, or choose Unblock in the file properties.';
       document.body.dataset.appState='error';

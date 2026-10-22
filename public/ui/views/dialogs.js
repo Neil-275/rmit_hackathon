@@ -25,6 +25,7 @@
         // A success still refreshes the page if the dialog was closed while the request was in flight.
         if(result.ok){if(stillOpen)V.closeDialog();ctx.notify(successMessage?successMessage(result.data):'Your changes have been recorded.');await ctx.refresh({keep:true});}
         else if(stillOpen){error.textContent=V.errorText(result.error);error.hidden=false;}
+        else ctx.notify(V.errorText(result.error),true);
       }catch(problem){error.textContent=problem&&problem.userFacing?problem.message:'Check your input before submitting.';error.hidden=false;}
       finally{submit.disabled=false;submit.removeAttribute('aria-busy');submit.replaceChildren.apply(submit,label);}
     });
