@@ -23,7 +23,7 @@ Cập nhật: **22/10/2026**. Đây là điểm bắt đầu để xem phần đ
 
 ## Kết quả kiểm tra
 
-Kết quả trên cây code core continuation trước khi tích hợp; cần chạy lại khi merge làm thay đổi code.
+Đã chạy lại P0/P1, UI, typecheck và Next build trên `master` sau khi gộp core continuation (`1db4b8f`). Cần chạy lại khi có thay đổi code tiếp theo.
 
 | Kiểm tra | Kết quả |
 | --- | --- |
