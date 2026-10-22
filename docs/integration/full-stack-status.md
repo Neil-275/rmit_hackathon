@@ -23,6 +23,11 @@ row under "In progress" and push before you begin, so nobody duplicates work.**
 
 ## Done and pushed
 
+- **Claude** — **access fix:** an accused person can no longer read the report about them, even with an oversight
+  role (Chi as director could read a report accusing Chi). Demo data: Iris (compliance) holds `auditor` so an
+  awaiting-jury report has a legitimate reader. Seed: the identity recipient is the drawn juror who requests the
+  review (no redraw for a preferred jury). P1 **168/168**.
+
 - **Claude** — UI fixes found while recording the demo: approval toast no longer claims the author refused consent when
   credit is simply not published yet; report detail hides "Request identity review" while a round is open or granted.
   UI **67/67**.

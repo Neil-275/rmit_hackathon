@@ -4,37 +4,184 @@
   "policyVersion": "p1-app-enforced",
   "council": {
     "version": 1,
-    "selectionPolicy": { "minVoters": 3, "maxVoters": 5 },
+    "selectionPolicy": {
+      "minVoters": 3,
+      "maxVoters": 5
+    },
     "members": [
-      { "subject": "subject-eva", "displayName": "Eva Do", "membershipRole": "CHAIR", "independent": false, "active": true },
-      { "subject": "subject-frank", "displayName": "Frank Vu", "membershipRole": "MEMBER", "independent": false, "active": true },
-      { "subject": "subject-grace", "displayName": "Grace Hoang", "membershipRole": "MEMBER", "independent": true, "active": true },
-      { "subject": "subject-henry", "displayName": "Henry Ly", "membershipRole": "MEMBER", "independent": false, "active": true },
-      { "subject": "subject-iris", "displayName": "Iris Phan", "membershipRole": "MEMBER", "independent": false, "active": true }
+      {
+        "subject": "subject-eva",
+        "displayName": "Eva Do",
+        "membershipRole": "CHAIR",
+        "independent": false,
+        "active": true
+      },
+      {
+        "subject": "subject-frank",
+        "displayName": "Frank Vu",
+        "membershipRole": "MEMBER",
+        "independent": false,
+        "active": true
+      },
+      {
+        "subject": "subject-grace",
+        "displayName": "Grace Hoang",
+        "membershipRole": "MEMBER",
+        "independent": true,
+        "active": true
+      },
+      {
+        "subject": "subject-henry",
+        "displayName": "Henry Ly",
+        "membershipRole": "MEMBER",
+        "independent": false,
+        "active": true
+      },
+      {
+        "subject": "subject-iris",
+        "displayName": "Iris Phan",
+        "membershipRole": "MEMBER",
+        "independent": false,
+        "active": true
+      }
     ]
   },
   "personas": [
-    { "subject": "subject-an", "displayName": "An Nguyen", "title": "Software engineer", "roles": ["employee"] },
-    { "subject": "subject-binh", "displayName": "Binh Tran", "title": "Engineering manager", "roles": ["employee", "manager"] },
-    { "subject": "subject-chi", "displayName": "Chi Le", "title": "Director", "roles": ["employee", "director"] },
-    { "subject": "subject-dave", "displayName": "Dave Pham", "title": "System administrator", "roles": ["employee", "it_admin"] },
-    { "subject": "subject-eva", "displayName": "Eva Do", "title": "Council chair", "roles": ["employee"] },
-    { "subject": "subject-frank", "displayName": "Frank Vu", "title": "Legal counsel", "roles": ["employee"] },
-    { "subject": "subject-grace", "displayName": "Grace Hoang", "title": "Independent representative", "roles": ["employee"] },
-    { "subject": "subject-henry", "displayName": "Henry Ly", "title": "Employee representative", "roles": ["employee"] },
-    { "subject": "subject-iris", "displayName": "Iris Phan", "title": "Compliance specialist", "roles": ["employee"] },
-    { "subject": "subject-mai", "displayName": "Mai Tran", "title": "Research specialist", "roles": ["employee"] }
+    {
+      "subject": "subject-an",
+      "displayName": "An Nguyen",
+      "title": "Software engineer",
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "subject": "subject-binh",
+      "displayName": "Binh Tran",
+      "title": "Engineering manager",
+      "roles": [
+        "employee",
+        "manager"
+      ]
+    },
+    {
+      "subject": "subject-chi",
+      "displayName": "Chi Le",
+      "title": "Director",
+      "roles": [
+        "employee",
+        "director"
+      ]
+    },
+    {
+      "subject": "subject-dave",
+      "displayName": "Dave Pham",
+      "title": "System administrator",
+      "roles": [
+        "employee",
+        "it_admin"
+      ]
+    },
+    {
+      "subject": "subject-eva",
+      "displayName": "Eva Do",
+      "title": "Council chair",
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "subject": "subject-frank",
+      "displayName": "Frank Vu",
+      "title": "Legal counsel",
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "subject": "subject-grace",
+      "displayName": "Grace Hoang",
+      "title": "Independent representative",
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "subject": "subject-henry",
+      "displayName": "Henry Ly",
+      "title": "Employee representative",
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "subject": "subject-iris",
+      "displayName": "Iris Phan",
+      "title": "Compliance specialist",
+      "roles": [
+        "employee",
+        "auditor"
+      ]
+    },
+    {
+      "subject": "subject-mai",
+      "displayName": "Mai Tran",
+      "title": "Research specialist",
+      "roles": [
+        "employee"
+      ]
+    }
   ],
   "directory": [
-    { "id": "subject-an", "displayName": "An Nguyen", "managerId": "subject-binh" },
-    { "id": "subject-binh", "displayName": "Binh Tran", "managerId": "subject-chi" },
-    { "id": "subject-chi", "displayName": "Chi Le", "managerId": null },
-    { "id": "subject-dave", "displayName": "Dave Pham", "managerId": "subject-chi" },
-    { "id": "subject-eva", "displayName": "Eva Do", "managerId": "subject-chi" },
-    { "id": "subject-frank", "displayName": "Frank Vu", "managerId": "subject-chi" },
-    { "id": "subject-grace", "displayName": "Grace Hoang", "managerId": null },
-    { "id": "subject-henry", "displayName": "Henry Ly", "managerId": "subject-chi" },
-    { "id": "subject-iris", "displayName": "Iris Phan", "managerId": "subject-chi" },
-    { "id": "subject-mai", "displayName": "Mai Tran", "managerId": "subject-chi" }
+    {
+      "id": "subject-an",
+      "displayName": "An Nguyen",
+      "managerId": "subject-binh"
+    },
+    {
+      "id": "subject-binh",
+      "displayName": "Binh Tran",
+      "managerId": "subject-chi"
+    },
+    {
+      "id": "subject-chi",
+      "displayName": "Chi Le",
+      "managerId": null
+    },
+    {
+      "id": "subject-dave",
+      "displayName": "Dave Pham",
+      "managerId": "subject-chi"
+    },
+    {
+      "id": "subject-eva",
+      "displayName": "Eva Do",
+      "managerId": "subject-chi"
+    },
+    {
+      "id": "subject-frank",
+      "displayName": "Frank Vu",
+      "managerId": "subject-chi"
+    },
+    {
+      "id": "subject-grace",
+      "displayName": "Grace Hoang",
+      "managerId": null
+    },
+    {
+      "id": "subject-henry",
+      "displayName": "Henry Ly",
+      "managerId": "subject-chi"
+    },
+    {
+      "id": "subject-iris",
+      "displayName": "Iris Phan",
+      "managerId": "subject-chi"
+    },
+    {
+      "id": "subject-mai",
+      "displayName": "Mai Tran",
+      "managerId": "subject-chi"
+    }
   ]
 }

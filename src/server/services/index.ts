@@ -160,8 +160,10 @@ export function createServices(deps: ServiceDeps) {
     isOversight(actor) || row.recipientSubject === actor.subject
     || (JSON.parse(row.votersJson) as EligibleVoter[]).some((v) => v.id === actor.subject);
 
+  // An accused person never reads the report about them, even with an oversight role.
+  const isAccused = (row: ReportRow, actor: Actor) => (JSON.parse(row.accusedJson) as string[]).includes(actor.subject);
   const canSeeReport = (row: ReportRow, actor: Actor) =>
-    isOversight(actor) || !!assignmentOf(row)?.voters.some((v) => v.id === actor.subject);
+    !isAccused(row, actor) && (isOversight(actor) || !!assignmentOf(row)?.voters.some((v) => v.id === actor.subject));
 
   const findVoting = (id: string) =>
     prisma.votingRequest.findFirst({

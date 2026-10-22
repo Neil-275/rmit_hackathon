@@ -152,6 +152,14 @@ describe("reports + voting", () => {
     expect(JSON.stringify(list)).not.toContain("opaque-");
   });
 
+  it("an accused director cannot read the report about them, even with the oversight role", async () => {
+    const report = expectOk(await svc.createReport(an, await reportDto(["subject-chi"])));
+    expectErr(await svc.getReport(chi, report.id), "NOT_FOUND");
+    expect(expectOk(await svc.listReports(chi, {})).items.map((r) => r.id)).not.toContain(report.id);
+    const auditor = actor("subject-juror-2", ["employee", "auditor"]);
+    expect(expectOk(await svc.listReports(auditor, {})).items.map((r) => r.id)).toContain(report.id);
+  });
+
   it("luồng mở: dưới T QUORUM_PENDING, đủ T có independent READY, chỉ recipient mở được", async () => {
     const dto = await investigating();
     const vr = await unmask(dto.id);

@@ -44,8 +44,11 @@ async function report(reporter: string, title: string, evidenceDetails: string, 
   console.log(`  report ${String(view.status).padEnd(13)} ${title} · N=${view.voterCount ?? "-"} T=${view.quorumRequired ?? "-"}`);
   if (!unmask || jurors.length === 0) return;
   const ids = jurors.map((j) => String(j.subject ?? j.id).replace(/^subject-/, ""));
-  const opener = unmask.by && ids.includes(unmask.by) ? unmask.by : ids[0];
-  const round = must(await (await as(opener)).createUnmaskRequest(view.id, { recipientSubject: "subject-frank", purpose: unmask.purpose }), `unmask "${title}"`);
+  // The jury is drawn at random, so the requester is whichever juror was drawn (Frank when he is); it also receives
+  // the identity. Never redraw to get a preferred jury.
+  const opener = ids.includes(unmask.by ?? "frank") ? (unmask.by ?? "frank") : ids[0];
+  const round = must(await (await as(opener)).createUnmaskRequest(view.id, { recipientSubject: `subject-${opener}`, purpose: unmask.purpose }), `unmask "${title}"`);
+  console.log(`         recipient ${opener}`);
   // Independent members vote first so a full set of approvals reaches READY.
   const order = [...jurors].sort((a, b) => Number(b.independent) - Number(a.independent)).map((j) => String(j.subject ?? j.id).replace(/^subject-/, ""));
   let last: any = round;
