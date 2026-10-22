@@ -10,7 +10,9 @@ const record = (value: unknown): View => {
 const strings = (value: unknown): string[] => Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
 const unavailable = () => fail("POLICY_UNAVAILABLE", "This operation requires a verified Tide policy and is currently unavailable.", { enforcement: "APP" });
 
-export function createVoiceVaultUIRuntime(core: RuntimeSource) {
+// simulatedTide: the server runs Simulated TideCloak, so its own role checks gate submission and reveal.
+export function createVoiceVaultUIRuntime(core: RuntimeSource, options: { simulatedTide?: boolean } = {}) {
+  const simulated = options.simulatedTide === true;
   async function call(name: string, args: unknown[]): Promise<ApiResult<unknown>> {
     const fn = core[name];
     if (typeof fn !== "function") return unavailable();
@@ -43,7 +45,7 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
       role: authenticated ? role : null, roles,
       organizationId: value.organizationId,
       // HTTP submissions remain locked until encrypted-envelope provenance is verified.
-      capabilities: { canSubmit: false, canProposeCouncil: false },
+      capabilities: { canSubmit: simulated && cap.includes("submitIdea"), canProposeCouncil: false },
     };
   }
   function idea(data: unknown) {
@@ -53,7 +55,7 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
       status: value.status, version: value.version, createdAt: value.createdAt,
       endorsedBy: value.endorsedBy ?? null, endorsedAt: value.endorsedAt ?? null,
       publicCredit: typeof value.publicCredit === "string" ? { displayName: value.publicCredit } : null,
-      capabilities: { canEndorse: cap.includes("endorse"), canDecide: cap.includes("decide"), canReveal: false },
+      capabilities: { canEndorse: cap.includes("endorse"), canDecide: cap.includes("decide"), canReveal: simulated && cap.includes("revealIdentity") },
     };
   }
   function voting(data: unknown) {
@@ -93,18 +95,18 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
     };
   }
   const runtime = {
-    contractVersion: "v1", mode: "LIVE",
+    contractVersion: "v1", mode: "LIVE", simulatedTide: simulated,
     init: () => mapped("init", [], session),
     getSession: () => mapped("getSession", [], session),
     login: () => mapped("login", [], session),
     logout: () => mapped("logout", [], session),
     listIdeas: (query?: unknown) => mapped("listIdeas", [query], (data) => page(data, idea)),
     getIdea: (id?: unknown) => mapped("getIdea", [id], idea),
-    submitIdea: async (..._args: unknown[]) => unavailable(),
+    submitIdea: simulated ? (input?: unknown) => mapped("submitIdea", [input], idea) : async (..._args: unknown[]) => unavailable(),
     decideIdea: (id?: unknown, input?: unknown) => mapped("decideIdea", [id, input], idea),
     listReports: (query?: unknown) => mapped("listReports", [query], (data) => page(data, report)),
     getReport: (id?: unknown) => mapped("getReport", [id], report),
-    submitReport: async (..._args: unknown[]) => unavailable(),
+    submitReport: simulated ? (input?: unknown) => mapped("submitReport", [input], report) : async (..._args: unknown[]) => unavailable(),
     getDirectory: () => mapped("getDirectory", [], (data) => { const value = record(data); if (!Array.isArray(value.people)) throw new Error("Invalid directory"); return { people: value.people }; }),
     createUnmaskRequest: (id?: unknown, input?: unknown) => mapped("createUnmaskRequest", [id, input], (data) => {
       const value = record(data); return { id: value.id, votingRequestId: value.votingRequestId, voting: voting(value) };
@@ -118,7 +120,9 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
       return { id: value.id, action: value.action, targetId: value.resourceId, enforcement: value.source, createdAt: value.occurredAt, actor: "Recorded action", outcome: value.result === "OK" ? "ALLOWED" : value.result };
     })),
     // No APP-only vote or director role can activate an unverified cryptographic release.
-    revealIdentity: async (..._args: unknown[]) => unavailable(),
+    revealIdentity: simulated
+      ? (kind?: unknown, id?: unknown, round?: unknown) => mapped("revealIdentity", [kind, id, round], (data) => { const v = record(data); return { displayName: v.displayName, contact: v.contact ?? null, simulated: true }; })
+      : async (..._args: unknown[]) => unavailable(),
     endorseIdea: (id?: unknown, expectedVersion?: unknown) => mapped("endorseIdea", [id, expectedVersion], idea),
     listCouncilChanges: async (..._args: unknown[]) => unavailable(),
     submitCouncilChange: async (..._args: unknown[]) => unavailable(),

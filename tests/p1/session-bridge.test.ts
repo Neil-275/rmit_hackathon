@@ -14,9 +14,9 @@ describe("session and bridge continuation", () => {
     expect(await runtime.getSession()).toMatchObject({ ok: false, error: { code: "UNAUTHENTICATED" } });
   });
 
-  it("provides the bootstrap factory and fails closed without configured adapters", () => {
+  it("provides the bootstrap factory and fails closed without configured adapters", async () => {
     expect(typeof globals.createVoiceVaultLiveRuntime).toBe("function");
-    expect(() => globals.createVoiceVaultLiveRuntime()).toThrow("POLICY_UNAVAILABLE");
+    await expect(globals.createVoiceVaultLiveRuntime()).rejects.toThrow("POLICY_UNAVAILABLE");
     expect(globals.VoiceVaultLiveStubs).toBeUndefined();
   });
 
@@ -24,7 +24,7 @@ describe("session and bridge continuation", () => {
     globals.VoiceVaultLiveConfig = { apiBase: "/api/v1", auth: createStubAuth(identity), crypto: createStubCrypto(),
       fetch: async () => Response.json(ok({ ...identity, capabilities: ["submitIdea", "submitReport"] })) };
     expect(typeof globals.createVoiceVaultLiveRuntime).toBe("function");
-    const runtime = globals.createVoiceVaultLiveRuntime();
+    const runtime = await globals.createVoiceVaultLiveRuntime();
     // Submission stays locked in LIVE until ciphertext provenance is verified (master decision).
     expect(await runtime.init()).toMatchObject({ ok: true, data: { capabilities: { canSubmit: false } } });
     expect(runtime.mode).toBe("LIVE");

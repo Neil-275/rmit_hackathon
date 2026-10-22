@@ -23,6 +23,13 @@ row under "In progress" and push before you begin, so nobody duplicates work.**
 
 ## Done and pushed
 
+- **Claude** — Simulated TideCloak, browser side: `public/sim-tidecloak/login.html` (synthetic users + roles, same-origin
+  return only), `src/integration/sim-tidecloak-auth.ts` (AuthAdapter/CryptoAdapter with the real adapters' shape).
+  The LIVE factory is now async and uses the simulation only when no host Tide adapter is configured **and** the
+  server answers `/sim-tidecloak/personas`; otherwise it still fails closed. UI banner says "Simulated TideCloak …
+  not Tide-enforced" in amber. Submit/reveal follow server capabilities in this mode only. P0 61/61, P1 **154/154**,
+  UI 65/65, bridge ✓, build ✓.
+
 - **Claude** — Simulated TideCloak, server side (`src/server/sim-tidecloak.ts`, `app/sim-tidecloak/{personas,token}`):
   signs HS256 access tokens shaped like TideCloak's (`iss`, `azp`, `exp`, `iat`, `sub`, `organizationId`,
   `realm_access.roles`); `verifySimulatedToken` has the same contract as `verifyTideCloakToken`, so actor extraction,

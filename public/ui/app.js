@@ -45,6 +45,8 @@
         banner.dataset.connection=unavailable?'unavailable':connected?'connected':'signed-out';
         // LIVE identifies the adapter; it does not prove a Fabric connection or policy gate.
         banner.replaceChildren(V.icon(unavailable?'alert':connected?'check':'lock',16),h('span',{},unavailable?'LIVE — Session unavailable':connected?'LIVE — Runtime connected':'LIVE — Sign in required'),V.tag('LIVE'));
+        // Simulated TideCloak runs the real API and data, but sign-in, roles and envelopes are not Tide-enforced.
+        if(runtime.simulatedTide===true){banner.dataset.connection=unavailable?'unavailable':connected?'simulated':'signed-out';banner.replaceChildren(V.icon('spark',16),h('span',{},'Simulated TideCloak — real API and data; sign-in, roles and identity envelopes are simulated, not Tide-enforced'+(connected?'':' · Sign in required')),V.tag('SIMULATED'));}
       }
       if(runtime.mode==='MOCK'&&runtime.simulation){
         var persona=h('select',{id:'persona-select','aria-label':'Choose a demo persona'},state.session.authenticated?null:h('option',{value:'',disabled:true},unavailable?'Session unavailable':'Signed out'),runtime.simulation.personas.map(function(p){return h('option',{value:p.id},p.displayName+' · '+p.title);}));persona.value=state.session.subject||'';

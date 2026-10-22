@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Simulated TideCloak</title>
+  <style>
+    :root { --frame: #001d6c; --accent: #0f62fe; --ink: #10203a; --muted: #52617a; --line: #dce4f1; --warn: #684500; --warn-bg: #fff1c7; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--frame); color: var(--ink);
+      font: 14px/1.5 "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; padding: 16px; }
+    main { width: min(560px, 100%); background: #fff; border-radius: 12px; padding: 28px; }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    p { margin: 0; color: var(--muted); }
+    .notice { margin: 16px 0 20px; padding: 10px 12px; border-radius: 6px; color: var(--warn); background: var(--warn-bg); font-size: 13px; }
+    ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+    button { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 12px; min-height: 44px;
+      border: 1px solid var(--line); border-radius: 8px; background: #fff; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+    button:hover, button:focus-visible { border-color: var(--accent); outline: none; background: #edf5ff; }
+    small { color: var(--muted); display: block; }
+    .roles { font-size: 12px; color: #25487a; white-space: nowrap; }
+    .error { color: #a2191f; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Sign in to VoiceVault</h1>
+    <p>Realm <strong id="realm">voicevault-sim</strong></p>
+    <div class="notice" role="note">Simulated TideCloak for development and demos. Users are synthetic; there is no password,
+      threshold verification or Tide network. The VoiceVault server still verifies each signed token and checks its roles.</div>
+    <ul id="users" aria-label="Demo users"></ul>
+    <p class="error" id="error" role="alert" hidden></p>
+  </main>
+  <script>
+    (function () {
+      'use strict';
+      var list = document.getElementById('users'), error = document.getElementById('error');
+      // Only same-origin paths may be used as the return target.
+      var back = new URLSearchParams(location.search).get('return') || '/ui/index.html';
+      if (back.charAt(0) !== '/' || back.charAt(1) === '/' || back.charAt(1) === '\\') back = '/ui/index.html';
+      function show(message) { error.textContent = message; error.hidden = false; }
+      function el(tag, text, cls) { var node = document.createElement(tag); if (text) node.textContent = text; if (cls) node.className = cls; return node; }
+      fetch('/sim-tidecloak/personas', { cache: 'no-store' }).then(function (res) {
+        if (!res.ok) throw new Error('Simulated sign-in is not enabled on this server.');
+        return res.json();
+      }).then(function (data) {
+        document.getElementById('realm').textContent = data.realm;
+        data.users.forEach(function (user) {
+          var button = el('button'), who = el('span');
+          button.type = 'button';
+          who.append(el('strong', user.displayName), el('small', (user.title || '') + (user.council ? ' · Council member' : '')));
+          button.append(who, el('span', user.roles.join(', '), 'roles'));
+          button.addEventListener('click', function () {
+            button.disabled = true;
+            fetch('/sim-tidecloak/token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: user.subject }) })
+              .then(function (res) { if (!res.ok) throw new Error('Sign-in failed.'); return res.json(); })
+              .then(function (token) { sessionStorage.setItem('voicevault.simTideCloak.token', token.access_token); location.replace(back); })
+              .catch(function (e) { button.disabled = false; show(e.message); });
+          });
+          var item = el('li'); item.append(button); list.append(item);
+        });
+      }).catch(function (e) { show(e.message); });
+    }());
+  </script>
+</body>
+</html>

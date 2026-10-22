@@ -2,11 +2,16 @@
 import { CONTRACT_VERSION } from "../contracts/api";
 import { createVoiceVaultLive, type AuthAdapter, type CryptoAdapter } from "./browser-runtime";
 import { createVoiceVaultUIRuntime } from "./ui-runtime";
+import { createSimTideCloakAuth, createSimTideCloakCrypto, simulatedTideCloakEnabled } from "./sim-tidecloak-auth";
 
 const g = globalThis as Record<string, unknown>;
 
-export function createVoiceVaultLiveRuntime() {
+export async function createVoiceVaultLiveRuntime() {
   const config = g.VoiceVaultLiveConfig as { auth?: AuthAdapter; crypto?: CryptoAdapter; apiBase?: string; fetch?: typeof fetch } | undefined;
+  // Without a host-supplied Tide adapter, use Simulated TideCloak only if the server explicitly enables it.
+  if (!config?.auth && await simulatedTideCloakEnabled()) {
+    return createVoiceVaultUIRuntime(createVoiceVaultLive({ apiBase: "/api/v1", auth: createSimTideCloakAuth(), crypto: createSimTideCloakCrypto() }), { simulatedTide: true });
+  }
   const auth = config?.auth;
   if (!auth || ["init", "getToken", "login", "logout", "session"].some((key) => typeof auth[key as keyof AuthAdapter] !== "function")) {
     throw new Error("POLICY_UNAVAILABLE");
