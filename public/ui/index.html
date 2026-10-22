@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VoiceVault</title>
+  <style>
+    :root { --bg: #f7f7f5; --fg: #1d1d1b; --muted: #6b6b66; --card: #fff; --line: #deddd8; --accent: #2f5bd3; --warn: #fff4d6; --err: #b3261e; --ok: #1e7b34; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #161615; --fg: #ecebe6; --muted: #a2a19b; --card: #22221f; --line: #3a3935; --accent: #8aa8ff; --warn: #4a3d12; --err: #ff8a80; --ok: #7bd88f; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+    #app { max-width: 860px; margin: 0 auto; padding: 16px; }
+    header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+    h1 { margin: 8px 0; font-size: 1.5rem; }
+    .vv-banner { padding: 8px 12px; border-radius: 6px; font-weight: 600; }
+    .vv-mock { background: var(--warn); }
+    .vv-live { border: 1px solid var(--line); }
+    .vv-session { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .vv-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 12px 0; }
+    .vv-tabs button[aria-pressed="true"] { background: var(--accent); color: var(--bg); }
+    .vv-card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
+    .vv-card h3, .vv-card h4, .vv-card p { margin: 0; }
+    .vv-card button { align-self: flex-start; }
+    .vv-meta, .vv-muted { color: var(--muted); font-size: 0.9rem; }
+    .vv-error, .vv-boot-error { color: var(--err); }
+    .vv-ok { color: var(--ok); }
+    input, textarea, select, button { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--fg); }
+    button { cursor: pointer; }
+  </style>
+  <script src="../integration/contract-fixtures.js" defer></script>
+  <script src="./mock-runtime.js" defer></script>
+  <script src="./app.js" defer></script>
+  <script src="../integration/bootstrap.js" defer></script>
+</head>
+<body>
+  <main id="app">
+    <noscript>VoiceVault cần JavaScript.</noscript>
+  </main>
+</body>
+</html>

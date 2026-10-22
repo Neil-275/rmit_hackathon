@@ -1,18 +1,30 @@
 ## Project overview
 
-**VoiceVault** is a cryptographically enforced employee voice platform protecting bottom-up ideas and whistleblowing reports without requiring employees to trust their organization's hierarchy or administrators.
+**VoiceVault** is an employee voice platform for anonymous ideas and whistleblowing reports, built on TideCloak so that no single administrator holds the keys to a speaker's identity.
 
-### Vision & originality
-Idea boxes and whistleblowing hotlines both fail because whoever controls the channel controls the speaker's identity. VoiceVault unifies them: **Sealed-Credited Ideas** keep authors anonymous during review—staying permanently encrypted if rejected to prevent ridicule, while automatically unlocking credit upon approval. **Protected Reports** pair conflict-free random jury selection with threshold identity decryption.
+### Problem
+Idea boxes and ethics hotlines fail for the same reason: whoever runs the channel can see who is speaking. Employees hold back bold ideas (fear of ridicule, credit theft) and misconduct reports (fear of retaliation, especially when the accused sits on the review board).
 
-### Trust constraint insight
-Employees withhold bold ideas fearing ridicule if judged infeasible, or credit theft by middle managers if successful. Whistleblowers stay silent because admins or executives can unmask them—especially when the accused sits on the review board. Eliminating unilateral control makes speaking up mathematically safe.
+### What VoiceVault does
+- **Sealed ideas.** The author's identity is encrypted in the browser with TideCloak before submission. Reviewers see only the content. If the idea is approved and the author opted in, credit is published; otherwise it stays sealed.
+- **Protected reports.** For each report the app excludes the accused from the ethics council, draws a random jury size N (3–5), then draws N members with at least one independent member. Revealing the reporter requires T = ⌈2N/3⌉ approvals, including the independent member. A single valid DENY closes the request.
+- **Council changes go through the same vote.** There is no "edit roster" button; changes are proposals that need a quorum and go stale if the roster changes first.
 
-### Value & impact
-Employees innovate and report misconduct safely; companies capture unvarnished ideas and early risk warnings. When engineer An submits an idea, manager Binh cannot steal credit, and An faces zero embarrassment if Director Chi rejects it. When An reports misconduct involving an ethics committee member, that member is automatically excluded before a random jury is assigned.
+### What is enforced where (honest scope)
+| Guarantee | Enforced by |
+| --- | --- |
+| Login, roles, client-side encryption of identity | TideCloak (Tide Cybersecurity Fabric) |
+| Server never receives plaintext identity | Browser runtime design; server stores ciphertext only |
+| Conflict-of-interest exclusion, N/T draw, quorum counting, council-change voting | VoiceVault app (labelled **APP**) |
+| Identity release gated by Tide policy | Under verification; where not yet verified the demo labels the step **SIMULATED** |
 
-### Why TideCloak matters
-Standard backends let DBAs alter authors, read identities, or self-assign roles. VoiceVault uses TideCloak's Emergent Authority to encrypt identities client-side. Decryption only happens when policy conditions are met—either formal idea approval or a 2/3 quorum from a randomly selected, conflict-free ethics jury. No admin or CEO can unilaterally override this.
+Every error and audit event in the UI shows its source (APP, FABRIC, SIMULATED), so the demo never overclaims.
 
-### Prototype & storytelling
-Our prototype demonstrates both flows across Engineer, Manager, Director, IT Admin, and Ethics Pool roles. Judges will see TideCloak block three violations: a manager altering authorship, an IT Admin self-assigning jury roles, and a CEO or conflicted board member attempting to unmask a whistleblower without a valid 2/3 quorum.
+## Run locally
+```bash
+npm install
+npm run init        # provisions the TideCloak realm (Docker TideCloak on :8080)
+npm run dev         # http://localhost:3000 -> /ui/index.html
+npm run test:p0     # contract tests
+```
+Opening `public/ui/index.html` directly from disk runs the UI against mock data (labelled MOCK).

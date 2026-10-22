@@ -1,8 +1,14 @@
-my-app
 tidecloak-data
-web
 node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
 .env
 .env.*
 !.env.example
+# Adapter config sinh bởi init/tcinit.sh; mỗi máy tự sinh, không commit.
+tidecloak.json
+init/.realm_name
+*.db
+*.db-journal
 public/integration/runtime.generated.js
