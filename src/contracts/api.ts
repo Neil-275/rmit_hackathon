@@ -141,6 +141,7 @@ export interface ReportView {
   evidenceDetails?: string;
   accusedPersonIds: string[];
   votingRequestId: string | null;
+  voters?: Pick<VoterView, "subject" | "displayName" | "independent">[];
   capabilities: string[];
   councilVersion?: number;
   councilRosterHash?: string;

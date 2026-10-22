@@ -76,8 +76,8 @@ export function createServices(deps: ServiceDeps) {
   async function audit(e: {
     action: string; resourceKind?: ResourceKind | null; resourceId?: string | null;
     result?: "OK" | "DENIED" | "ERROR"; actorSubject?: string | null;
-  }) {
-    await prisma.auditEvent.create({
+  }, db: Pick<PrismaClient, "auditEvent"> = prisma) {
+    await db.auditEvent.create({
       data: {
         id: newId(), organizationId: roster.organizationId, action: e.action,
         resourceKind: e.resourceKind ?? null, resourceId: e.resourceId ?? null,
@@ -117,6 +117,7 @@ export function createServices(deps: ServiceDeps) {
       votingRequestId: row.votingRequestId, capabilities,
       councilVersion: row.councilVersion, councilRosterHash: row.councilRosterHash,
       voterCount: assignment?.voterCount ?? null, quorumRequired: assignment?.quorumRequired ?? null,
+      voters: (assignment?.voters ?? []).map(v => ({ subject: v.id, displayName: displayNameOf(v.id), independent: v.independent })),
       contentHash: row.contentHash, createdAt: row.createdAt.toISOString(),
     };
   };
@@ -141,6 +142,7 @@ export function createServices(deps: ServiceDeps) {
       voterCount: row.voterCount, quorumRequired: row.quorumRequired,
       voters: snap.voters.map((v) => ({
         subject: v.id, displayName: displayNameOf(v.id), independent: v.independent, hasVoted: t.voted.has(v.id),
+        ...(row.votes.find(vote => vote.voterSubject === v.id) ? { decision: row.votes.find(vote => vote.voterSubject === v.id)!.decision as "APPROVE" | "DENY" } : {}),
       })),
       validApprovals: t.validApprovals, independentApproved: t.independentApproved,
       expiresAt: row.expiresAt.toISOString(), recipientSubject: row.recipientSubject, purpose: row.purpose,
@@ -265,12 +267,16 @@ export function createServices(deps: ServiceDeps) {
     if (row.version !== v.value.expectedVersion) return fail("VERSION_CONFLICT", "phiên bản đã đổi, tải lại", { retryable: true });
     const next = decideIdeaTransition(row.status as IdeaStatus, v.value.decision);
     if (!next.ok) return fail(next.code, next.message);
-    const updated = await prisma.idea.updateMany({
-      where: { id: row.id, version: row.version },
-      data: { status: next.status, version: row.version + 1, decisionReason: v.value.reason, decidedAt: now() },
+    const updated = await prisma.$transaction(async (tx) => {
+      const changed = await tx.idea.updateMany({
+        where: { id: row.id, organizationId: roster.organizationId, version: row.version },
+        data: { status: next.status, version: { increment: 1 }, decisionReason: v.value.reason, decidedAt: now() },
+      });
+      if (changed.count !== 1) return false;
+      await audit({ action: `IDEA_${next.status}`, resourceKind: "IDEA", resourceId: row.id, actorSubject: actor.subject }, tx);
+      return true;
     });
-    if (updated.count !== 1) return fail("VERSION_CONFLICT", "phiên bản đã đổi, tải lại", { retryable: true });
-    await audit({ action: `IDEA_${next.status}`, resourceKind: "IDEA", resourceId: row.id, actorSubject: actor.subject });
+    if (!updated) return fail("VERSION_CONFLICT", "The idea changed. Reload before deciding.", { retryable: true });
     return ok(ideaView(await prisma.idea.findUniqueOrThrow({ where: { id: row.id } }), actor));
   }
 
@@ -391,8 +397,13 @@ export function createServices(deps: ServiceDeps) {
       }
     }
     const id = newId();
-    await prisma.$transaction([
-      prisma.votingRequest.create({
+    const created = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.report.updateMany({
+        where: { id: report.id, organizationId: roster.organizationId, version: report.version, votingRequestId: report.votingRequestId },
+        data: { votingRequestId: id, version: { increment: 1 } },
+      });
+      if (claimed.count !== 1) return false;
+      await tx.votingRequest.create({
         data: {
           id, organizationId: roster.organizationId, operation: "REVEAL_REPORT_IDENTITY",
           resourceKind: "REPORT", resourceId: report.id, state: "COLLECTING",
@@ -401,10 +412,11 @@ export function createServices(deps: ServiceDeps) {
           councilRosterHash: report.councilRosterHash, recipientSubject: recipient, purpose: v.value.purpose,
           nonce: newId(), expiresAt: new Date(now().getTime() + votingTtlMs), createdAt: now(),
         },
-      }),
-      prisma.report.update({ where: { id: report.id }, data: { votingRequestId: id, version: report.version + 1 } }),
-    ]);
-    await audit({ action: "UNMASK_REQUEST_CREATED", resourceKind: "REPORT", resourceId: report.id, actorSubject: actor.subject });
+      });
+      await audit({ action: "UNMASK_REQUEST_CREATED", resourceKind: "REPORT", resourceId: report.id, actorSubject: actor.subject }, tx);
+      return true;
+    });
+    if (!created) return fail("VERSION_CONFLICT", "An identity request was created concurrently. Reload.", { retryable: true });
     const row = (await findVoting(id))!;
     return ok({ ...votingView(row, actor), votingRequestId: id, reportId: report.id });
   }
@@ -414,7 +426,7 @@ export function createServices(deps: ServiceDeps) {
     if (denied) return denied;
     const report = await prisma.report.findFirst({ where: { id: String(reportId ?? "").toLowerCase(), organizationId: roster.organizationId } });
     const row = votingRequestId ? await findVoting(String(votingRequestId)) : null;
-    if (!report || !row || row.resourceKind !== "REPORT" || row.resourceId !== report.id || row.operation !== "REVEAL_REPORT_IDENTITY") {
+    if (!report || !row || report.votingRequestId !== row.id || row.resourceKind !== "REPORT" || row.resourceId !== report.id || row.operation !== "REVEAL_REPORT_IDENTITY") {
       return fail("NOT_FOUND", "không tìm thấy yêu cầu mở");
     }
     if (row.recipientSubject !== actor.subject) {
@@ -466,26 +478,32 @@ export function createServices(deps: ServiceDeps) {
     const check = canCast(snapshotOf(row), actor.subject, now());
     if (!check.ok) return fail(check.code, check.message);
     try {
-      await prisma.vote.create({
-        data: { votingRequestId: row.id, voterSubject: actor.subject, decision: v.value.decision, reason: v.value.reason, createdAt: now() },
+      return await prisma.$transaction(async (tx) => {
+        // Claim the snapshot before accepting a ballot; concurrent callers must reload.
+        const claimed = await tx.votingRequest.updateMany({
+          where: { id: row.id, organizationId: roster.organizationId, version: row.version, state: "COLLECTING", expiresAt: { gt: now() } },
+          data: { version: { increment: 1 } },
+        });
+        if (claimed.count !== 1) {
+          return row.expiresAt <= now()
+            ? fail("APPROVAL_EXPIRED", "This voting round has expired.")
+            : fail("VERSION_CONFLICT", "The voting round changed. Reload before voting.", { retryable: true });
+        }
+        await tx.vote.create({
+          data: { votingRequestId: row.id, voterSubject: actor.subject, decision: v.value.decision, reason: v.value.reason, createdAt: now() },
+        });
+        const fresh = await tx.votingRequest.findUniqueOrThrow({ where: { id: row.id }, include: { votes: { orderBy: { id: "asc" } } } });
+        const result = tally(snapshotOf(fresh), now());
+        if (result.state !== fresh.state) await tx.votingRequest.update({ where: { id: row.id }, data: { state: result.state } });
+        await audit({ action: `VOTE_${v.value.decision}`, resourceKind: row.resourceKind as ResourceKind, resourceId: row.resourceId, actorSubject: actor.subject }, tx);
+        if (result.state !== fresh.state) await audit({ action: `VOTING_${result.state}`, resourceKind: row.resourceKind as ResourceKind, resourceId: row.resourceId }, tx);
+        return ok(votingView({ ...fresh, state: result.state }, actor));
       });
     } catch (e) {
-      if ((e as { code?: string }).code === "P2002") return fail("FORBIDDEN", "đã bỏ phiếu");
+      if ((e as { code?: string }).code === "P2002") return fail("FORBIDDEN", "A vote has already been recorded.");
       throw e;
     }
-    const fresh = (await findVoting(row.id))!;
-    const t = tally(snapshotOf(fresh), now());
-    if (t.state !== fresh.state) {
-      await prisma.votingRequest.updateMany({
-        where: { id: fresh.id, version: fresh.version },
-        data: { state: t.state, version: fresh.version + 1 },
-      });
-    }
-    await audit({ action: `VOTE_${v.value.decision}`, resourceKind: row.resourceKind as ResourceKind, resourceId: row.resourceId, actorSubject: actor.subject });
-    if (t.state !== fresh.state) {
-      await audit({ action: `VOTING_${t.state}`, resourceKind: row.resourceKind as ResourceKind, resourceId: row.resourceId });
-    }
-    return ok(votingView((await findVoting(row.id))!, actor));
+
   }
 
   // ---------- Audit ----------

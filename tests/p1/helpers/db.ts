@@ -1,6 +1,6 @@
 // DB SQLite tạm cho mỗi lần chạy: tạo file riêng, đẩy schema bằng prisma db push, xoá khi xong.
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -9,6 +9,7 @@ const ROOT = path.resolve(__dirname, "../../..");
 
 export function createTempDb(): { prisma: PrismaClient; cleanup: () => Promise<void> } {
   const dir = mkdtempSync(path.join(tmpdir(), "voicevault-p1-"));
+  writeFileSync(path.join(dir, "test.db"), "");
   const url = `file:${path.join(dir, "test.db").replace(/\\/g, "/")}`;
   execFileSync(process.execPath, [
     path.join(ROOT, "node_modules/prisma/build/index.js"), "db", "push",

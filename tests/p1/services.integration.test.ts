@@ -249,6 +249,51 @@ describe("reports + voting", () => {
     expect(raw).toHaveLength(1);
     expect(raw[0].actorSubject).toBeNull();
   });
+
+it("serializes concurrent closing votes so only one can close the round", async () => {
+  const dto = await investigating(); const vr = await unmask(dto.id);
+  expectOk(await vote(j1, vr.id, "APPROVE"));
+  const results = await Promise.all([vote(j2, vr.id, "DENY"), vote(j3, vr.id, "APPROVE")]);
+  expect(results.filter(r => r.ok)).toHaveLength(1);
+  expectErr(results.find(r => !r.ok), "VERSION_CONFLICT");
+  expect(await prisma.vote.count({ where: { votingRequestId: vr.id } })).toBe(2);
+  expect(["READY", "DENIED"]).toContain(expectOk(await svc.getVotingRequest(j1, vr.id)).state);
+});
+
+it("report views carry fixed assigned voters before an unmask round exists", async () => {
+  const dto = await investigating();
+  const report = expectOk(await svc.getReport(j1, dto.id));
+  expect(report.votingRequestId).toBeNull();
+  expect(report.voters).toHaveLength(3);
+  expect(report.voters).toContainEqual({ subject: j3.subject, displayName: "Juror 3", independent: true });
+});
+
+  it("rolls back a vote when writing its audit event fails", async () => {
+    const dto = await investigating(); const vr = await unmask(dto.id);
+    const broken = prisma.$extends({ query: { auditEvent: { async create() { throw new Error("audit unavailable"); } } } });
+    const service = createServices({ prisma: broken as unknown as PrismaClient, roster, now: () => clock });
+    await expect(service.castVote(j1, vr.id, { contractVersion: "v1", votingRequestId: vr.id, decision: "APPROVE", reason: "reviewed" })).rejects.toThrow("audit unavailable");
+    expect(await prisma.vote.count({ where: { votingRequestId: vr.id } })).toBe(0);
+    expect(expectOk(await svc.getVotingRequest(j1, vr.id)).state).toBe("COLLECTING");
+  });
+
+  it("rolls back an unmask request when writing its audit event fails", async () => {
+    const dto = await investigating();
+    const broken = prisma.$extends({ query: { auditEvent: { async create() { throw new Error("audit unavailable"); } } } });
+    const service = createServices({ prisma: broken as unknown as PrismaClient, roster, now: () => clock });
+    await expect(service.createUnmaskRequest(j1, dto.id, { contractVersion: "v1", recipientSubject: j3.subject, purpose: "reviewed" })).rejects.toThrow("audit unavailable");
+    expect(await prisma.votingRequest.count()).toBe(0);
+    expect((await prisma.report.findUniqueOrThrow({ where: { id: dto.id } })).votingRequestId).toBeNull();
+  });
+
+  it("rolls back an idea decision when writing its audit event fails", async () => {
+    const dto = await ideaDto(); const idea = expectOk(await svc.createIdea(an, dto));
+    const broken = prisma.$extends({ query: { auditEvent: { async create() { throw new Error("audit unavailable"); } } } });
+    const service = createServices({ prisma: broken as unknown as PrismaClient, roster, now: () => clock });
+    await expect(service.decideIdea(chi, idea.id, { contractVersion: "v1", expectedVersion: idea.version, decision: "REJECT", reason: "reviewed" })).rejects.toThrow("audit unavailable");
+    expect((await prisma.idea.findUniqueOrThrow({ where: { id: idea.id } })).status).toBe("UNDER_REVIEW");
+  });
+
 });
 
 describe("session / council / directory", () => {

@@ -30,8 +30,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       { vuid: user.vuid, userkey: user.tideuserkey },
       { status: 200 }
     )
-  } catch (err) {
-    console.error('Token verification failed:', err)
+  } catch {
+    console.error('Token verification failed')
     return NextResponse.json(
       { error: 'Internal Server Error' },
       { status: 500 }

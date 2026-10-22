@@ -22,7 +22,8 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
     try {
       const result = await call(name, args);
       return result.ok ? { ...result, data: await convert(result.data) } : result;
-    } catch {
+    } catch (error) {
+      if (isApiResult(error) && !error.ok) return error;
       return fail("CONTRACT_MISMATCH", "The API response does not match the UI contract.", { enforcement: "CLIENT" });
     }
   }
@@ -47,7 +48,7 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
   function idea(data: unknown) {
     const value = record(data), cap = strings(value.capabilities);
     return {
-      id: value.id, title: value.title, description: value.description, category: value.category,
+      id: value.id, title: value.title, description: value.description, category: typeof value.category === "string" ? value.category.toUpperCase() : value.category,
       status: value.status, version: value.version, createdAt: value.createdAt,
       publicCredit: typeof value.publicCredit === "string" ? { displayName: value.publicCredit } : null,
       capabilities: { canEndorse: false, canDecide: cap.includes("decide"), canReveal: false },
@@ -68,7 +69,7 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
       id: value.id, resourceId: value.resourceId, operation: value.operation, status: value.state,
       voters, voterCount: value.voterCount, quorumRequired: value.quorumRequired,
       approvalCount: value.validApprovals, validApprovals, independentApproved: value.independentApproved,
-      councilVersion: value.councilVersion, expiresAt: value.expiresAt, recipientSubject: value.recipientSubject,
+      purpose: value.purpose, councilVersion: value.councilVersion, expiresAt: value.expiresAt, recipientSubject: value.recipientSubject,
       canVote: cap.includes("vote"), canReveal: false,
     };
   }
@@ -77,13 +78,14 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
     let round = null;
     if (typeof value.votingRequestId === "string") {
       const result = await call("getVotingRequest", [value.votingRequestId]);
-      if (!result.ok) throw new Error("Voting request unavailable");
+      if (!result.ok) throw result;
       round = voting(result.data);
     }
     return {
       id: value.id, title: value.title, evidenceDetails: value.evidenceDetails, status: value.status,
       version: value.version, createdAt: value.createdAt, accusedPersonIds: value.accusedPersonIds,
       voterCount: value.voterCount, quorumRequired: value.quorumRequired,
+      voters: Array.isArray(value.voters) ? value.voters.map(v => { const person = record(v); return { id: person.subject, displayName: String(person.displayName || person.subject), independent: person.independent === true }; }) : [],
       votingRequestId: value.votingRequestId, voting: round,
       capabilities: { canRequestUnmask: cap.includes("requestUnmask") },
     };
@@ -111,7 +113,7 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
     getCouncil: () => mapped("getCouncil", [], (data) => ({ ...record(data), capabilities: { canPropose: false } })),
     listAudit: (query?: unknown) => mapped("listAudit", [query], (data) => page(data, (item) => {
       const value = record(item);
-      return { id: value.id, action: value.action, targetId: value.resourceId, enforcement: value.source, createdAt: value.occurredAt, actor: "Recorded action", outcome: value.result };
+      return { id: value.id, action: value.action, targetId: value.resourceId, enforcement: value.source, createdAt: value.occurredAt, actor: "Recorded action", outcome: value.result === "OK" ? "ALLOWED" : value.result };
     })),
     // No APP-only vote or director role can activate an unverified cryptographic release.
     revealIdentity: async (..._args: unknown[]) => unavailable(),

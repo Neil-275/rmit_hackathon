@@ -50,4 +50,21 @@ describe("current static UI adapter", () => {
     expect(await ui.revealIdentity("REPORT", "report", "round")).toMatchObject({ ok: false, error: { code: "POLICY_UNAVAILABLE" } });
     expect(await ui.listReports()).toMatchObject({ ok: false, error: { code: "FORBIDDEN" } });
   });
+  it("preserves fixed assignment summaries before a round is created", async () => {
+    const ui = createVoiceVaultUIRuntime(core({ getReport: async () => ok({ id: "report", voterCount: 3, quorumRequired: 2, votingRequestId: null, capabilities: ["requestUnmask"], voters: [{ subject: "juror", displayName: "Juror", independent: true }] }) }));
+    expect(await ui.getReport("report")).toMatchObject({ ok: true, data: { voters: [{ id: "juror", displayName: "Juror", independent: true }] } });
+  });
+  it("preserves a nested voting failure so the user can retry the real failure", async () => {
+    const ui = createVoiceVaultUIRuntime(core({ getVotingRequest: async () => fail("POLICY_UNAVAILABLE", "Voting unavailable", { retryable: true }) }));
+    expect(await ui.listReports()).toMatchObject({ ok: false, error: { code: "POLICY_UNAVAILABLE", retryable: true } });
+  });
+  it("maps API success audit outcomes and canonical idea categories for UI consumers", async () => {
+    const ui = createVoiceVaultUIRuntime(core({
+      listIdeas: async () => ok({ items: [{ id: "idea", category: "process", capabilities: [] }], nextCursor: null }),
+      listAudit: async () => ok({ items: [{ id: "event", result: "OK" }], nextCursor: null }),
+    }));
+    expect(await ui.listIdeas()).toMatchObject({ ok: true, data: { items: [{ category: "PROCESS" }] } });
+    expect(await ui.listAudit()).toMatchObject({ ok: true, data: { items: [{ outcome: "ALLOWED" }] } });
+  });
+
 });

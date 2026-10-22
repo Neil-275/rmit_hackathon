@@ -18,10 +18,9 @@ export const proxy = createTideCloakProxy({
     // (e.g. "appUser") to demonstrate role-based access control.
     "/protected": ["offline_access"],
   },
-  onFailure: (ctx: { token: string | null }, req: NextRequest) => {
+  onFailure: (_ctx: { token: string | null }, req: NextRequest) => {
     console.debug("Token verification failed", {
       path: req.nextUrl.pathname,
-      ctx,
     });
     return NextResponse.json(
       { error: "Access forbidden: invalid token" },
@@ -32,8 +31,8 @@ export const proxy = createTideCloakProxy({
     return NextResponse.next();
   },
   // onError receives (err, req): the error is the first argument.
-  onError: (err: unknown, req: NextRequest) => {
-    console.error("[Proxy] error verifying token for", req.nextUrl.pathname, err);
+  onError: (_err: unknown, req: NextRequest) => {
+    console.error("[Proxy] error verifying token for", req.nextUrl.pathname);
     // if something unexpected happens, redirect to your auth flow
     const redirectUrl = new URL("/auth/redirect", req.url);
     return NextResponse.redirect(redirectUrl);

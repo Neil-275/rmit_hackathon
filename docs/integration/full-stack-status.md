@@ -31,6 +31,21 @@ Do not merge into master or another teammate's branch without reviewing the fina
 - Bridge --check builds in a temporary directory and verifies the bootstrap factory; passed.
 - Full P0/P1/build still pending dependency download; this unit does not claim LIVE Tide verification.
 
+## Completed unit: backend integrity and UI payloads
+
+- Merged verified UI commit 279d53c into this branch (master unchanged).
+- Concurrent unmask requests use a report version/pointer compare-and-swap; loser creates no orphan round.
+- Votes claim the round version in the same SQLite transaction as ballot, tally and audit.
+- Votes, idea decisions and unmask creation roll back when audit writes fail.
+- Identity-envelope service checks the report current-round pointer. HTTP release remains locked.
+- Report assignment summaries and individual APPROVE/DENY decisions now reach the UI adapter.
+- Adapter preserves nested retryable failures, purpose, categories and successful audit outcomes.
+- Removed credential/context and raw verifier exception logging from legacy auth routes.
+- SQLite test helper pre-creates its own temporary file for Windows compatibility.
+- RED: 9 service, 3 adapter and 2 logging regressions failed before their fixes.
+- GREEN: full P1 124/124, P0 61/61, backend/integration type-check passed.
+- No LIVE Tide proof or Windows-machine validation is claimed by these tests.
+
 ## Next
 
 1. Commit verified UI corrections and their regression tests on `work/ui-static`.
