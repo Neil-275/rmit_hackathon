@@ -1,10 +1,10 @@
-> **Trạng thái dự án:** xem [PROJECT_STATUS.md](PROJECT_STATUS.md) để biết đã làm được gì, kết quả kiểm tra, việc còn lại và phân công. Tích hợp Tide LIVE vẫn đang WIP; [handoff gốc](docs/integration/HANDOFF-2026-10-22.md) được giữ làm bản ghi lịch sử.
+> **Trạng thái dự án:** WIP. Tích hợp Tide LIVE chưa hoàn tất.
 
 ## Run the current UI
 
 Open [public/ui/index.html](public/ui/index.html) directly in Chrome/Edge; Next.js and Docker are unnecessary.
 This is a **MOCK using synthetic data**, with no TideCloak/LIVE backend connection. See the
-[usage guide](public/ui/README.md) and [handoff for Tung](docs/integration/static-ui-handoff.md).
+[usage guide](public/ui/README.md).
 The sections below describe product goals and architecture that require verification during LIVE integration.
 
 ## Project overview

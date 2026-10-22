@@ -17,3 +17,6 @@ init/.realm_name
 *.db
 *.db-journal
 public/integration/runtime.generated.js
+
+# Agent/process notes (local only)
+.agent-notes/

@@ -50,9 +50,6 @@ HTTP(S) accepts only LIVE v1. If `public/integration/runtime.generated.js` or a
 compatible factory is missing, an error appears and functionality stays locked. Running `python -m http.server`
 does not switch automatically to the demo.
 
-See the [integration and merge guide](../../docs/integration/static-ui-handoff.md)
-and [design notes](../../docs/design/voicevault-taste.md).
-
 ## Overview and connection status
 
 The overview distinguishes visible voting activity from **Votes awaiting you**. The personal count

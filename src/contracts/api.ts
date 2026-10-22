@@ -1,6 +1,6 @@
 // Contract v1 cho API P1 (/api/v1) và runtime bridge.
 // Nguồn sự thật về tên field là tests/p0 (fixture + mock). Field chưa được tests/p0 khẳng định
-// thì để optional và ghi trong docs/integration/p1-core.md mục "Contract cần chốt".
+// thì để optional.
 // File này chạy được cả browser lẫn Node: không import node:*, không API riêng của Next.
 
 export const CONTRACT_VERSION = "v1" as const;
