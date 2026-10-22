@@ -539,3 +539,68 @@ test('a report without optional voter summaries still opens its fixed assignment
   assert.match(await page.evaluate('document.querySelector("dialog .assignment").innerText'),/Voter names.*unavailable/);
   assert.deepEqual(page.errors,[]);
 });
+
+
+async function liveSessionPreview(){
+  await page.evaluate(`window.sessionRuntime=Object.assign({},window.VoiceVaultRuntime,{mode:'LIVE'});window.VoiceVaultUI.mount(window.sessionRuntime);`);
+  await page.waitFor('document.body.dataset.appState === "ready"');
+}
+
+test('a retryable session outage hides scoped data, names the outage and recovers through retry',async()=>{
+  await liveSessionPreview();
+  await page.evaluate(`const original=window.sessionRuntime.getSession;let failed=false;window.sessionRuntime.getSession=function(){if(!failed){failed=true;return Promise.resolve({ok:false,contractVersion:'v1',error:{code:'POLICY_UNAVAILABLE',message:'Session service temporarily unavailable.',enforcement:'APP',retryable:true}});}return original.apply(this,arguments);};
+    const reports=window.sessionRuntime.listReports;window.sessionReportReads=0;window.sessionRuntime.listReports=function(){window.sessionReportReads++;return reports.apply(this,arguments);};`);
+  await nav('reports');
+  const content=await page.evaluate('document.getElementById("page-content").innerText');
+  assert.match(content,/Session unavailable/);assert.match(content,/Session service temporarily unavailable/);assert.match(content,/POLICY_UNAVAILABLE/);assert.doesNotMatch(content,/Sign in to continue/);
+  assert.equal(await page.evaluate('document.querySelectorAll(".report-card").length'),0);
+  assert.equal(await page.evaluate('window.sessionReportReads'),0);
+  assert.equal(await page.evaluate('document.getElementById("mode-banner").dataset.connection'),'unavailable');
+  assert.doesNotMatch(await page.evaluate('document.getElementById("mode-banner").innerText'),/Runtime connected|Sign in required/);
+  await page.evaluate('[...document.querySelectorAll("#page-content button")].find(b=>b.textContent==="Try again").click()');
+  await page.waitFor('document.body.dataset.appState === "ready" && document.querySelector(".report-card")');
+  assert.equal(await page.evaluate('document.getElementById("mode-banner").dataset.connection'),'connected');
+  assert.equal(await page.evaluate('window.sessionReportReads'),1);
+});
+
+test('an actual unauthenticated session response shows sign-in instead of an outage',async()=>{
+  await liveSessionPreview();
+  await page.evaluate(`window.sessionRuntime.getSession=async()=>({ok:false,contractVersion:'v1',error:{code:'UNAUTHENTICATED',message:'Session expired.',enforcement:'APP',retryable:false}});`);
+  await nav('reports');
+  assert.match(await page.evaluate('document.getElementById("page-content").innerText'),/Sign in to continue/);
+  assert.equal(await page.evaluate('document.querySelectorAll("#page-content .error-state").length'),0);
+  assert.equal(await page.evaluate('document.getElementById("mode-banner").dataset.connection'),'signed-out');
+});
+
+test('a failed logout reports its error and keeps the confirmed session connected',async()=>{
+  await liveSessionPreview();
+  await page.evaluate(`window.sessionRuntime.logout=async()=>({ok:false,contractVersion:'v1',error:{code:'POLICY_UNAVAILABLE',message:'Sign-out could not be completed.',enforcement:'APP',retryable:true}});`);
+  await page.click('[aria-label="Sign out"]');
+  await page.waitFor('document.body.dataset.appState === "ready"');
+  assert.match(await page.evaluate('document.getElementById("toast-region").innerText'),/Sign-out could not be completed.*POLICY_UNAVAILABLE/s);
+  assert.equal(await page.evaluate('document.getElementById("mode-banner").dataset.connection'),'connected');
+  assert.equal(await page.evaluate('document.getElementById("persona-name").textContent'),'An Nguyen');
+  assert.equal(await page.evaluate('document.querySelectorAll("[aria-label=\"Sign out\"]").length'),1);
+});
+
+for(const selector of ['#session-chip [aria-label="Sign in"]','#page-content button']){
+  test('a failed login reports its error from '+selector,async()=>{
+    await page.evaluate('window.VoiceVaultRuntime.logout()');
+    await liveSessionPreview();
+    await page.evaluate(`window.sessionRuntime.login=async()=>({ok:false,contractVersion:'v1',error:{code:'POLICY_UNAVAILABLE',message:'Sign-in provider unavailable.',enforcement:'APP',retryable:true}});`);
+    await page.click(selector);
+    await page.waitFor('document.body.dataset.appState === "ready"');
+    assert.match(await page.evaluate('document.getElementById("toast-region").innerText'),/Sign-in provider unavailable.*POLICY_UNAVAILABLE/s);
+    assert.equal(await page.evaluate('document.getElementById("mode-banner").dataset.connection'),'signed-out');
+    assert.match(await page.evaluate('document.getElementById("page-content").innerText'),/Sign in to continue/);
+  });
+}
+
+test('a failed persona change shows the error and restores the confirmed selection',async()=>{
+  await page.evaluate(`window.VoiceVaultRuntime.login=async()=>({ok:false,contractVersion:'v1',error:{code:'FORBIDDEN',message:'Persona switch refused.',enforcement:'SIMULATED',retryable:false}});
+    const persona=document.getElementById('persona-select');persona.value='frank';persona.dispatchEvent(new Event('change',{bubbles:true}));`);
+  await page.waitFor('document.body.dataset.appState === "ready"');
+  assert.match(await page.evaluate('document.getElementById("toast-region").innerText'),/Persona switch refused.*FORBIDDEN/s);
+  assert.equal(await page.evaluate('document.getElementById("persona-select").value'),'an');
+  assert.equal(await page.evaluate('document.getElementById("persona-name").textContent'),'An Nguyen');
+});

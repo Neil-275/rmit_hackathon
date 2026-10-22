@@ -11,7 +11,7 @@
     var revision=0,toastTimer,acting=false;
     var ctx={runtime:runtime,state:state,loading:true};
     ctx.notify=function(message,isError){var region=document.getElementById('toast-region');region.replaceChildren(h('div',{class:'toast'+(isError?' is-error':'')},V.icon(isError?'alert':'check',18),h('span',{},message)));clearTimeout(toastTimer);toastTimer=setTimeout(function(){region.replaceChildren();},5000);};
-    ctx.call=async function(method,args){try{if(typeof runtime[method]!=='function')throw new Error('CONTRACT_MISMATCH');var result=await runtime[method].apply(runtime,args||[]);if(!result||result.contractVersion!=='v1'||typeof result.ok!=='boolean')throw new Error('CONTRACT_MISMATCH');return result;}catch(error){return {ok:false,contractVersion:'v1',error:{code:'POLICY_UNAVAILABLE',message:'The connection is unavailable. Please try again later.',enforcement:runtime.mode==='MOCK'?'SIMULATED':'APP'}};}};
+    ctx.call=async function(method,args){try{if(typeof runtime[method]!=='function')throw new Error('CONTRACT_MISMATCH');var result=await runtime[method].apply(runtime,args||[]);if(!result||result.contractVersion!=='v1'||typeof result.ok!=='boolean')throw new Error('CONTRACT_MISMATCH');return result;}catch(error){return {ok:false,contractVersion:'v1',error:{code:'POLICY_UNAVAILABLE',message:'The connection is unavailable. Please try again later.',enforcement:runtime.mode==='MOCK'?'SIMULATED':'APP',retryable:true}};}};
     // One action at a time; the button shows progress and the refresh re-renders it either way.
     ctx.act=async function(method,args,button,busyLabel){
       if(acting)return null;acting=true;
@@ -29,20 +29,26 @@
     var main=h('main',{class:'main'},h('header',{class:'topbar'},h('div',{class:'topbar-location'},menu,h('span',{class:'breadcrumb'},'Your workspace'),V.icon('chevron',13),h('span',{id:'breadcrumb-current'},'Overview')),h('div',{class:'topbar-right'},h('label',{class:'search-box'},V.icon('search',17),search),identity)),h('div',{class:'main-inner'},h('div',{class:'mode-banner',id:'mode-banner'},V.icon(runtime.mode==='MOCK'?'spark':'shield',16),h('span',{},runtime.mode==='MOCK'?'Simulation mode — TideCloak is not connected':'LIVE — Checking session'),V.tag(runtime.mode)),h('div',{id:'simulation-controls',class:'simulation-controls'}),h('div',{class:'page-heading'},h('div',{},h('p',{class:'eyebrow'},'Your voice. Shared accountability.'),h('h1',{id:'page-title'},'Overview'),h('p',{id:'page-description',class:'page-description'})),h('span',{class:'today'},V.icon('clock',15),new Intl.DateTimeFormat('en-GB',{weekday:'short',day:'numeric',month:'long',timeZone:'Asia/Bangkok'}).format(new Date()))),h('div',{id:'page-content',tabindex:'-1'}),h('footer',{class:'footer'},h('span',{},'VoiceVault'),h('span',{},runtime.mode==='MOCK'?'Preview · Synthetic data · In-memory session':'Every voice matters'))));
     root.append(sidebar,V.button('',function(){document.body.classList.remove('nav-open');menu.setAttribute('aria-expanded','false');},{class:'nav-overlay','aria-label':'Close navigation'}),main);
     function closeSensitive(){V.closeDialog();document.getElementById('toast-region').replaceChildren();}
+    async function authenticate(method,args){
+      closeSensitive();var result=await ctx.call(method,args);
+      if(!result.ok)ctx.notify(V.errorText(result.error),true);
+      await ctx.refresh();
+    }
     function controls(){
-      identity.replaceChildren(V.avatar(state.session.displayName,true),h('span',{id:'persona-name'},state.session.displayName),V.button(V.icon(state.session.authenticated?'logout':'arrow',16),async function(){closeSensitive();await ctx.call(state.session.authenticated?'logout':'login',[]);await ctx.refresh();},{class:'icon-button','aria-label':state.session.authenticated?'Sign out':'Sign in'}));
+      var unavailable=state.results.session&&!state.results.session.ok;
+      identity.replaceChildren(V.avatar(state.session.displayName,true),h('span',{id:'persona-name'},state.session.displayName),unavailable?null:V.button(V.icon(state.session.authenticated?'logout':'arrow',16),function(){authenticate(state.session.authenticated?'logout':'login',[]);},{class:'icon-button','aria-label':state.session.authenticated?'Sign out':'Sign in'}));
       var region=document.getElementById('simulation-controls');region.replaceChildren();
       region.hidden=runtime.mode!=='MOCK'||!runtime.simulation;
       var banner=document.getElementById('mode-banner');banner.dataset.mode=runtime.mode;
       if(runtime.mode==='LIVE'){
         var connected=state.session.authenticated===true;
-        banner.dataset.connection=connected?'connected':'signed-out';
+        banner.dataset.connection=unavailable?'unavailable':connected?'connected':'signed-out';
         // LIVE identifies the adapter; it does not prove a Fabric connection or policy gate.
-        banner.replaceChildren(V.icon(connected?'check':'lock',16),h('span',{},connected?'LIVE — Runtime connected':'LIVE — Sign in required'),V.tag('LIVE'));
+        banner.replaceChildren(V.icon(unavailable?'alert':connected?'check':'lock',16),h('span',{},unavailable?'LIVE — Session unavailable':connected?'LIVE — Runtime connected':'LIVE — Sign in required'),V.tag('LIVE'));
       }
       if(runtime.mode==='MOCK'&&runtime.simulation){
-        var persona=h('select',{id:'persona-select','aria-label':'Choose a demo persona'},state.session.authenticated?null:h('option',{value:'',disabled:true},'Signed out'),runtime.simulation.personas.map(function(p){return h('option',{value:p.id},p.displayName+' · '+p.title);}));persona.value=state.session.subject||'';
-        persona.addEventListener('change',async function(){closeSensitive();await ctx.call('login',[persona.value]);await ctx.refresh();});
+        var persona=h('select',{id:'persona-select','aria-label':'Choose a demo persona'},state.session.authenticated?null:h('option',{value:'',disabled:true},unavailable?'Session unavailable':'Signed out'),runtime.simulation.personas.map(function(p){return h('option',{value:p.id},p.displayName+' · '+p.title);}));persona.value=state.session.subject||'';
+        persona.addEventListener('change',function(){authenticate('login',[persona.value]);});
         var scenario=h('select',{id:'scenario-select','aria-label':'Choose a simulation scenario'},runtime.simulation.scenarios.map(function(s){return h('option',{value:s.id},s.label);}));scenario.value=runtime.simulation.getScenario();
         scenario.addEventListener('change',function(){closeSensitive();runtime.simulation.setScenario(scenario.value);ctx.refresh();});
         region.append(h('label',{},h('span',{},V.icon('users',14),'Persona'),persona),h('label',{},h('span',{},V.icon('spark',14),'Scenario'),scenario),h('small',{},'Switching personas only simulates roles in this session.'));
@@ -55,7 +61,8 @@
       document.querySelectorAll('[data-page]').forEach(function(button){button.classList.toggle('active',button.dataset.page===state.page);if(button.dataset.page===state.page)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');});
       var content=document.getElementById('page-content');content.dataset.view=state.page;content.removeAttribute('aria-busy');
       search.closest('.search-box').hidden=state.page==='overview';
-      if(!state.session.authenticated){content.replaceChildren(V.empty('Sign in to continue',runtime.mode==='MOCK'?'Choose a demo persona to explore the preview.':'Sign in with your organization account to continue.',V.button('Sign in',async function(){await ctx.call('login',[]);await ctx.refresh();},{class:'button primary'})));return;}
+      var sessionError=V.loadError(ctx,'session','Session unavailable');if(sessionError){content.replaceChildren(sessionError);return;}
+      if(!state.session.authenticated){content.replaceChildren(V.empty('Sign in to continue',runtime.mode==='MOCK'?'Choose a demo persona to explore the preview.':'Sign in with your organization account to continue.',V.button('Sign in',function(){authenticate('login',[]);},{class:'button primary'})));return;}
       var key={ideas:'ideas',reports:'reports',council:'council',audit:'audit'}[state.page];
       var result=state.results[key];
       if(result&&!result.ok){content.replaceChildren(V.loadError(ctx,key,'Unable to load content'));return;}
@@ -69,10 +76,12 @@
       if(options&&options.keep===true&&content.dataset.view===state.page)content.setAttribute('aria-busy','true');
       else content.replaceChildren(h('div',{class:'loading-state',role:'status'},h('span',{class:'spinner'}),'Updating the workspace...'));
       var sessionResult=await ctx.call('getSession',[]);if(ticket!==revision)return;
-      state.session=sessionResult.ok?sessionResult.data:{authenticated:false,displayName:'Signed out',capabilities:{}};
+      var unavailable=!sessionResult.ok&&sessionResult.error.code!=='UNAUTHENTICATED';
+      state.session=sessionResult.ok?sessionResult.data:{authenticated:false,displayName:unavailable?'Session unavailable':'Signed out',capabilities:{}};
       var names=['ideas','reports','council','changes','audit','directory'],methods=['listIdeas','listReports','getCouncil','listCouncilChanges','listAudit','getDirectory'];
       if(state.session.authenticated){var results=await Promise.all(methods.map(function(method){return ctx.call(method,[{}]);}));if(ticket!==revision)return;names.forEach(function(name,index){state.results[name]=results[index];state[name]=results[index].ok?results[index].data:(['ideas','reports','changes','audit'].includes(name)?{items:[]}:name==='directory'?{people:[]}:null);});}
-      else {state.ideas={items:[]};state.reports={items:[]};state.changes={items:[]};state.audit={items:[]};state.council=null;state.directory={people:[]};state.results={};}
+      else {V.closeDialog();state.ideas={items:[]};state.reports={items:[]};state.changes={items:[]};state.audit={items:[]};state.council=null;state.directory={people:[]};state.results={};}
+      state.results.session=unavailable?sessionResult:null;
       ctx.loading=false;controls();renderPage();
       if(!document.getElementById('app-dialog').open&&(document.activeElement===document.body||!document.activeElement))document.getElementById('page-content').focus({preventScroll:true});
       document.body.dataset.page=state.page;document.body.dataset.persona=state.session.subject||'';document.body.dataset.appState='ready';
