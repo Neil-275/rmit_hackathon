@@ -9,7 +9,7 @@ function core(overrides: Record<string, unknown> = {}) {
     getSession: async () => ok({ authenticated: true, subject: "employee", roles: ["employee"], capabilities: ["submitIdea", "submitReport"] }),
     listIdeas: async () => ok({ items: [{ id: "idea", status: "UNDER_REVIEW", capabilities: ["decide", "revealIdentity"], publicCredit: null }], nextCursor: null }),
     listReports: async () => ok({ items: [{ id: "report", capabilities: ["requestUnmask"], votingRequestId: "round" }], nextCursor: null }),
-    getVotingRequest: async () => ok({ id: "round", state: "READY", operation: "REVEAL_REPORT_IDENTITY", resourceId: "report", validApprovals: 2, independentApproved: true, capabilities: ["revealIdentity"], voters: [{ subject: "juror", displayName: "Juror", independent: true, hasVoted: true, decision: "APPROVE" }] }),
+    getVotingRequest: async () => ok({ id: "round", state: "READY", operation: "REVEAL_REPORT_IDENTITY", resourceId: "report", purpose: "Review evidence", validApprovals: 2, independentApproved: true, capabilities: ["revealIdentity"], voters: [{ subject: "juror", displayName: "Juror", independent: true, hasVoted: true, decision: "APPROVE" }] }),
     getCouncil: async () => ok({ version: 1, members: [], selectionPolicy: { minVoters: 3, maxVoters: 5 } }),
     listAudit: async () => ok({ items: [{ id: "event", occurredAt: "2026-10-22T00:00:00.000Z", source: "APP", resourceId: "idea", action: "IDEA_APPROVED" }], nextCursor: null }),
     revealIdentity: async () => { throw new Error("must never be called"); },
@@ -21,7 +21,7 @@ describe("current static UI adapter", () => {
   it("maps session capabilities and role without inventing authenticated users", async () => {
     const ui = createVoiceVaultUIRuntime(core());
     const session = await ui.getSession();
-    expect(session.ok && session.data.capabilities.canSubmit).toBe(true);
+    expect(session.ok && session.data.capabilities.canSubmit).toBe(false);
     expect(session.ok && session.data.role).toBe("engineer");
     const unavailable = createVoiceVaultUIRuntime(core({ getSession: async () => fail("UNAUTHENTICATED", "expired") }));
     expect(await unavailable.getSession()).toMatchObject({ ok: false, error: { code: "UNAUTHENTICATED" } });
@@ -35,7 +35,7 @@ describe("current static UI adapter", () => {
   it("hydrates nested voting and maps counts separately from actual decisions", async () => {
     const result = await createVoiceVaultUIRuntime(core()).listReports();
     expect(result.ok && result.data.items[0].voting).toMatchObject({
-      status: "READY", approvalCount: 2, validApprovals: [{ voterId: "juror", decision: "APPROVE" }], canReveal: false,
+      status: "READY", purpose: "Review evidence", approvalCount: 2, validApprovals: [{ voterId: "juror", decision: "APPROVE" }], canReveal: false,
     });
   });
 

@@ -41,7 +41,8 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
       displayName: authenticated ? String(value.displayName || value.subject || "Member") : "Signed out",
       role: authenticated ? role : null, roles,
       organizationId: value.organizationId,
-      capabilities: { canSubmit: authenticated && cap.includes("submitIdea") && cap.includes("submitReport"), canProposeCouncil: false },
+      // HTTP submissions remain locked until encrypted-envelope provenance is verified.
+      capabilities: { canSubmit: false, canProposeCouncil: false },
     };
   }
   function idea(data: unknown) {
@@ -68,7 +69,7 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
       id: value.id, resourceId: value.resourceId, operation: value.operation, status: value.state,
       voters, voterCount: value.voterCount, quorumRequired: value.quorumRequired,
       approvalCount: value.validApprovals, validApprovals, independentApproved: value.independentApproved,
-      councilVersion: value.councilVersion, expiresAt: value.expiresAt, recipientSubject: value.recipientSubject,
+      councilVersion: value.councilVersion, expiresAt: value.expiresAt, recipientSubject: value.recipientSubject, purpose: value.purpose,
       canVote: cap.includes("vote"), canReveal: false,
     };
   }
@@ -96,11 +97,11 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
     logout: () => mapped("logout", [], session),
     listIdeas: (query?: unknown) => mapped("listIdeas", [query], (data) => page(data, idea)),
     getIdea: (id?: unknown) => mapped("getIdea", [id], idea),
-    submitIdea: (input?: unknown) => mapped("submitIdea", [input], idea),
+    submitIdea: async (..._args: unknown[]) => unavailable(),
     decideIdea: (id?: unknown, input?: unknown) => mapped("decideIdea", [id, input], idea),
     listReports: (query?: unknown) => mapped("listReports", [query], (data) => page(data, report)),
     getReport: (id?: unknown) => mapped("getReport", [id], report),
-    submitReport: (input?: unknown) => mapped("submitReport", [input], report),
+    submitReport: async (..._args: unknown[]) => unavailable(),
     getDirectory: () => mapped("getDirectory", [], (data) => { const value = record(data); if (!Array.isArray(value.people)) throw new Error("Invalid directory"); return { people: value.people }; }),
     createUnmaskRequest: (id?: unknown, input?: unknown) => mapped("createUnmaskRequest", [id, input], (data) => {
       const value = record(data); return { id: value.id, votingRequestId: value.votingRequestId, voting: voting(value) };

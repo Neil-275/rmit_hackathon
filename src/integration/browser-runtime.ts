@@ -85,6 +85,7 @@ export function createVoiceVaultLive(options: LiveOptions) {
     } catch {
       return fail("POLICY_UNAVAILABLE", "không kết nối được API", { enforcement: "CLIENT", retryable: true });
     }
+    if (res.status === 401) return fail("UNAUTHENTICATED", "Session expired. Please sign in again.", { enforcement: "CLIENT" });
     let json: unknown;
     try {
       json = await res.json();
@@ -119,8 +120,7 @@ export function createVoiceVaultLive(options: LiveOptions) {
 
   async function getSession(): Promise<ApiResult<SessionView>> {
     if (!auth.session().authenticated) return ok(sessionView());
-    const me = await request<SessionView>("GET", "/me");
-    return me.ok || me.error.code !== "UNAUTHENTICATED" ? me : ok(sessionView());
+    return request<SessionView>("GET", "/me");
   }
 
   async function identityFor(binding: ResourceBinding, tag: IdentityEnvelope["tag"], contact?: string | null): Promise<IdentityEnvelope | null> {
@@ -213,7 +213,7 @@ export function createVoiceVaultLive(options: LiveOptions) {
     mode: "LIVE" as const,
     init: safe(async () => { await auth.init(); return getSession(); }),
     getSession: safe(getSession),
-    login: safe(async () => { await auth.login(); return ok(sessionView()); }),
+    login: safe(async () => { await auth.login(); return getSession(); }),
     logout: safe(async () => { await auth.logout(); return ok<SessionView>({ authenticated: false, roles: [], capabilities: [] }); }),
     listIdeas: safe(async (query?: unknown) => request("GET", `/ideas${qs(query)}`)),
     getIdea: safe(async (id?: unknown) => { const s = seg(id); return s ? request("GET", `/ideas/${s}`) : badId(); }),

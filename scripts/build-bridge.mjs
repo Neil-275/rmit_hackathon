@@ -28,8 +28,8 @@ await build({
 const context = { crypto: globalThis.crypto, TextEncoder, TextDecoder, URLSearchParams, btoa, atob };
 context.globalThis = context;
 vm.runInNewContext(readFileSync(outfile, "utf8"), context);
-if (typeof context.createVoiceVaultLive !== "function" || context.VoiceVaultLiveInfo?.contractVersion !== "v1") {
-  console.error("bundle không gán window.createVoiceVaultLive v1");
+if (typeof context.createVoiceVaultLiveRuntime !== "function" || context.VoiceVaultLiveInfo?.contractVersion !== "v1") {
+  console.error("bundle không gán window.createVoiceVaultLiveRuntime v1");
   process.exit(1);
 }
 console.log(`built ${check ? "(check) " : ""}${path.relative(root, outfile) || outfile}`);

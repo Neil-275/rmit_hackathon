@@ -139,9 +139,13 @@ export function createServices(deps: ServiceDeps) {
       id: row.id, version: row.version, operation: row.operation as VotingRequestView["operation"],
       resourceKind: row.resourceKind as ResourceKind, resourceId: row.resourceId, state: t.state,
       voterCount: row.voterCount, quorumRequired: row.quorumRequired,
-      voters: snap.voters.map((v) => ({
-        subject: v.id, displayName: displayNameOf(v.id), independent: v.independent, hasVoted: t.voted.has(v.id),
-      })),
+      voters: snap.voters.map((v) => {
+        const decision = snap.votes.find((vote) => vote.voterSubject === v.id)?.decision;
+        return {
+          subject: v.id, displayName: displayNameOf(v.id), independent: v.independent, hasVoted: t.voted.has(v.id),
+          ...(decision ? { decision } : {}),
+        };
+      }),
       validApprovals: t.validApprovals, independentApproved: t.independentApproved,
       expiresAt: row.expiresAt.toISOString(), recipientSubject: row.recipientSubject, purpose: row.purpose,
       councilVersion: row.councilVersion, capabilities,
@@ -391,8 +395,17 @@ export function createServices(deps: ServiceDeps) {
       }
     }
     const id = newId();
-    await prisma.$transaction([
-      prisma.votingRequest.create({
+    const created = await prisma.$transaction(async (tx) => {
+      // Claim this report version before creating a round. A losing caller writes nothing.
+      const claimed = await tx.report.updateMany({
+        where: {
+          id: report.id, organizationId: roster.organizationId, version: report.version,
+          votingRequestId: report.votingRequestId, status: "INVESTIGATING",
+        },
+        data: { votingRequestId: id, version: { increment: 1 } },
+      });
+      if (claimed.count !== 1) return false;
+      await tx.votingRequest.create({
         data: {
           id, organizationId: roster.organizationId, operation: "REVEAL_REPORT_IDENTITY",
           resourceKind: "REPORT", resourceId: report.id, state: "COLLECTING",
@@ -401,9 +414,10 @@ export function createServices(deps: ServiceDeps) {
           councilRosterHash: report.councilRosterHash, recipientSubject: recipient, purpose: v.value.purpose,
           nonce: newId(), expiresAt: new Date(now().getTime() + votingTtlMs), createdAt: now(),
         },
-      }),
-      prisma.report.update({ where: { id: report.id }, data: { votingRequestId: id, version: report.version + 1 } }),
-    ]);
+      });
+      return true;
+    });
+    if (!created) return fail("VERSION_CONFLICT", "The report changed. Reload and try again.", { retryable: true });
     await audit({ action: "UNMASK_REQUEST_CREATED", resourceKind: "REPORT", resourceId: report.id, actorSubject: actor.subject });
     const row = (await findVoting(id))!;
     return ok({ ...votingView(row, actor), votingRequestId: id, reportId: report.id });
@@ -414,7 +428,7 @@ export function createServices(deps: ServiceDeps) {
     if (denied) return denied;
     const report = await prisma.report.findFirst({ where: { id: String(reportId ?? "").toLowerCase(), organizationId: roster.organizationId } });
     const row = votingRequestId ? await findVoting(String(votingRequestId)) : null;
-    if (!report || !row || row.resourceKind !== "REPORT" || row.resourceId !== report.id || row.operation !== "REVEAL_REPORT_IDENTITY") {
+    if (!report || !row || report.votingRequestId !== row.id || row.resourceKind !== "REPORT" || row.resourceId !== report.id || row.operation !== "REVEAL_REPORT_IDENTITY") {
       return fail("NOT_FOUND", "không tìm thấy yêu cầu mở");
     }
     if (row.recipientSubject !== actor.subject) {
