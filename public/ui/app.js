@@ -36,7 +36,9 @@
     }
     function controls(){
       var unavailable=state.results.session&&!state.results.session.ok;
-      identity.replaceChildren(V.avatar(state.session.displayName,true),h('span',{id:'persona-name'},state.session.displayName),unavailable?null:V.button(V.icon(state.session.authenticated?'logout':'arrow',16),function(){authenticate(state.session.authenticated?'logout':'login',[]);},{class:'icon-button','aria-label':state.session.authenticated?'Sign out':'Sign in'}));
+      // Native replaceChildren renders null as text, so the sign-in/out button is appended separately.
+      identity.replaceChildren(V.avatar(state.session.displayName,true),h('span',{id:'persona-name'},state.session.displayName));
+      if(!unavailable)identity.append(V.button(V.icon(state.session.authenticated?'logout':'arrow',16),function(){authenticate(state.session.authenticated?'logout':'login',[]);},{class:'icon-button','aria-label':state.session.authenticated?'Sign out':'Sign in'}));
       var region=document.getElementById('simulation-controls');region.replaceChildren();
       region.hidden=runtime.mode!=='MOCK'||!runtime.simulation;
       var banner=document.getElementById('mode-banner');banner.dataset.mode=runtime.mode;

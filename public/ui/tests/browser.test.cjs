@@ -580,7 +580,7 @@ test('a failed logout reports its error and keeps the confirmed session connecte
   assert.match(await page.evaluate('document.getElementById("toast-region").innerText'),/Sign-out could not be completed.*POLICY_UNAVAILABLE/s);
   assert.equal(await page.evaluate('document.getElementById("mode-banner").dataset.connection'),'connected');
   assert.equal(await page.evaluate('document.getElementById("persona-name").textContent'),'An Nguyen');
-  assert.equal(await page.evaluate('document.querySelectorAll("[aria-label=\"Sign out\"]").length'),1);
+  assert.equal(await page.evaluate(`document.querySelectorAll('[aria-label="Sign out"]').length`),1);
 });
 
 for(const selector of ['#session-chip [aria-label="Sign in"]','#page-content button']){
