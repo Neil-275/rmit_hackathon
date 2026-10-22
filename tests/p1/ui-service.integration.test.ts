@@ -18,7 +18,7 @@ beforeAll(() => { db = createTempDb(); });
 afterAll(async () => { await db?.cleanup(); });
 
 it("renders real service vote decisions through HTTP and the adapter in the static DOM", async () => {
-  const roster = loadRoster(path.join(root, "config/roster.json"));
+  const roster = loadRoster(path.resolve(__dirname, "fixtures/roster.json"));
   const svc = createServices({ prisma: db.prisma, roster, drawInt: (min) => min });
   const j1 = actor("subject-juror-1"), j2 = actor("subject-juror-2");
   const dto = await reportDto(["subject-an"]);

@@ -23,6 +23,10 @@ row under "In progress" and push before you begin, so nobody duplicates work.**
 
 ## Done and pushed
 
+- **Claude** — demo data: `config/roster.json` now seats the spec council (Eva chair, Frank, Grace independent,
+  Henry, Iris) and the story personas (An, Binh manager, Chi director, Dave it_admin, Mai) with a manager chain for
+  CoI. The old placeholder moved to `tests/p1/fixtures/roster.json` so tests keep stable data. P1 **148/148**.
+
 - **Claude** — merged latest `master` (`4cf9add`, manager endorsement + PROJECT_STATUS) into this branch.
   Conflicts resolved keeping both sides' fixes: master's stricter unmask claim (`status: INVESTIGATING`) and voter
   decisions; Codex's audit write **inside** the unmask transaction; bridge keeps master's default-locked crypto but

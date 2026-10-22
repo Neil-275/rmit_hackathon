@@ -1,3 +1,4 @@
+import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createTempDb } from "./helpers/db";
 import { actor, ideaDto } from "./helpers/dto";
@@ -18,7 +19,7 @@ afterAll(async () => { await db?.cleanup(); });
 beforeEach(async () => {
   await db.prisma.idea.deleteMany();
   await db.prisma.auditEvent.deleteMany();
-  svc = createServices({ prisma: db.prisma, roster: loadRoster(), now: () => new Date("2026-10-22T09:00:00Z") });
+  svc = createServices({ prisma: db.prisma, roster: loadRoster(path.resolve(__dirname, "fixtures/roster.json")), now: () => new Date("2026-10-22T09:00:00Z") });
 });
 async function seed() {
   const dto = await ideaDto();

@@ -11,7 +11,7 @@ import { createTempDb } from "./helpers/db";
 import { RUNTIME_METHODS, UUID_RE, assertApiResult, findForbiddenKeys, quorumFor, toPlain } from "./helpers/contract.mjs";
 
 const API = "https://app.test/api/v1";
-const roster = loadRoster(path.resolve(__dirname, "../../config/roster.json"));
+const roster = loadRoster(path.resolve(__dirname, "fixtures/roster.json"));
 const personas: Record<string, AuthSession> = Object.fromEntries(roster.personas.map((p) => [p.subject, {
   authenticated: true, subject: p.subject, displayName: p.displayName, organizationId: roster.organizationId, roles: p.roles,
 }]));

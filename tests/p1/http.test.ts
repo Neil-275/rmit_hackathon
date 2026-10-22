@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createAuthenticator } from "../../src/server/auth";
 import { createHttpHandler } from "../../src/server/http";
@@ -11,7 +12,7 @@ const config = { "auth-server-url": "https://identity.example", realm: "voicevau
 const request = (path: string, init: RequestInit = {}) => new Request(`https://app.example/api/v1${path}`, {
   ...init, headers: { authorization: "Bearer signed-token", ...init.headers },
 });
-const services = () => createServices({ prisma: {} as PrismaClient, roster: loadRoster() });
+const services = () => createServices({ prisma: {} as PrismaClient, roster: loadRoster(path.resolve(__dirname, "fixtures/roster.json")) });
 
 describe("HTTP authentication boundary", () => {
   it.each([undefined, "", "Basic secret", "Bearer", "Bearer a b", "Bearer stub:identity"])("denies malformed credentials %s before services", async (authorization) => {

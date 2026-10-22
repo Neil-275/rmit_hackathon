@@ -7,7 +7,7 @@ import { createTempDb } from "./helpers/db";
 import { actor, ideaDto, reportDto } from "./helpers/dto";
 import { assertApiResult, findForbiddenKeys, quorumFor } from "./helpers/contract.mjs";
 
-const roster = loadRoster(path.resolve(__dirname, "../../config/roster.json"));
+const roster = loadRoster(path.resolve(__dirname, "fixtures/roster.json"));
 const an = actor("subject-an");
 const chi = actor("subject-chi", ["employee", "director"]);
 const binh = actor("subject-binh", ["employee", "manager"]);
