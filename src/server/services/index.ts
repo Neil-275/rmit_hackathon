@@ -391,8 +391,14 @@ export function createServices(deps: ServiceDeps) {
       }
     }
     const id = newId();
-    await prisma.$transaction([
-      prisma.votingRequest.create({
+    // Compare-and-swap trên version: hai juror tạo đồng thời thì chỉ một bản thắng, bản kia rollback.
+    const created = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.report.updateMany({
+        where: { id: report.id, version: report.version },
+        data: { votingRequestId: id, version: report.version + 1 },
+      });
+      if (claimed.count !== 1) return false;
+      await tx.votingRequest.create({
         data: {
           id, organizationId: roster.organizationId, operation: "REVEAL_REPORT_IDENTITY",
           resourceKind: "REPORT", resourceId: report.id, state: "COLLECTING",
@@ -401,9 +407,10 @@ export function createServices(deps: ServiceDeps) {
           councilRosterHash: report.councilRosterHash, recipientSubject: recipient, purpose: v.value.purpose,
           nonce: newId(), expiresAt: new Date(now().getTime() + votingTtlMs), createdAt: now(),
         },
-      }),
-      prisma.report.update({ where: { id: report.id }, data: { votingRequestId: id, version: report.version + 1 } }),
-    ]);
+      });
+      return true;
+    });
+    if (!created) return fail("VERSION_CONFLICT", "phản ánh vừa có yêu cầu mở khác, tải lại", { retryable: true });
     await audit({ action: "UNMASK_REQUEST_CREATED", resourceKind: "REPORT", resourceId: report.id, actorSubject: actor.subject });
     const row = (await findVoting(id))!;
     return ok({ ...votingView(row, actor), votingRequestId: id, reportId: report.id });
@@ -475,14 +482,15 @@ export function createServices(deps: ServiceDeps) {
     }
     const fresh = (await findVoting(row.id))!;
     const t = tally(snapshotOf(fresh), now());
-    if (t.state !== fresh.state) {
-      await prisma.votingRequest.updateMany({
-        where: { id: fresh.id, version: fresh.version },
-        data: { state: t.state, version: fresh.version + 1 },
-      });
-    }
+    // Chuyển trạng thái theo compare-and-swap trên state hiện lưu; chỉ bên thắng ghi audit chuyển trạng thái.
+    // Bên thua không mất gì: state luôn suy ra lại từ phiếu đã lưu trong tally().
+    const transitioned = t.state !== fresh.state
+      && (await prisma.votingRequest.updateMany({
+        where: { id: fresh.id, state: fresh.state },
+        data: { state: t.state, version: { increment: 1 } },
+      })).count === 1;
     await audit({ action: `VOTE_${v.value.decision}`, resourceKind: row.resourceKind as ResourceKind, resourceId: row.resourceId, actorSubject: actor.subject });
-    if (t.state !== fresh.state) {
+    if (transitioned) {
       await audit({ action: `VOTING_${t.state}`, resourceKind: row.resourceKind as ResourceKind, resourceId: row.resourceId });
     }
     return ok(votingView((await findVoting(row.id))!, actor));

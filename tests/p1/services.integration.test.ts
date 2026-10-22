@@ -201,6 +201,32 @@ describe("reports + voting", () => {
     expectErr(await svc.createUnmaskRequest(j1, dto.id, { contractVersion: "v1", recipientSubject: "subject-an", purpose: "x" }), "INVALID_REQUEST");
   });
 
+  it("hai juror tạo yêu cầu mở đồng thời: chỉ một request tồn tại và report trỏ đúng nó", async () => {
+    const dto = await investigating();
+    const results = await Promise.all([
+      svc.createUnmaskRequest(j1, dto.id, { contractVersion: "v1", recipientSubject: "subject-juror-3", purpose: "a" }),
+      svc.createUnmaskRequest(j2, dto.id, { contractVersion: "v1", recipientSubject: "subject-juror-3", purpose: "b" }),
+    ]);
+    const winners = results.filter((r) => r.ok);
+    expect(winners).toHaveLength(1);
+    for (const r of results.filter((x) => !x.ok)) expectErr(r, "VERSION_CONFLICT");
+    expect(await prisma.votingRequest.count()).toBe(1);
+    const report = await prisma.report.findUniqueOrThrow({ where: { id: dto.id } });
+    expect(report.votingRequestId).toBe((winners[0] as { data: { id: string } }).data.id);
+  });
+
+  it("phiếu đồng thời chạm READY: state lưu là READY và chỉ một audit chuyển trạng thái", async () => {
+    const dto = await investigating();
+    const vr = await unmask(dto.id);
+    expectOk(await vote(j1, vr.id, "APPROVE"));
+    const results = await Promise.all([vote(j2, vr.id, "APPROVE"), vote(j3, vr.id, "APPROVE")]);
+    // j3 (independent) đủ để READY; nếu j3 vào trước thì phiếu j2 tới sau request đã đóng.
+    expect(results.some((r) => r.ok)).toBe(true);
+    for (const r of results.filter((x) => !x.ok)) expectErr(r, "VERSION_CONFLICT");
+    expect((await prisma.votingRequest.findUniqueOrThrow({ where: { id: vr.id } })).state).toBe("READY");
+    expect(await prisma.auditEvent.count({ where: { action: "VOTING_READY" } })).toBe(1);
+  });
+
   it("audit ghi nguồn APP, không có người nộp", async () => {
     const dto = await investigating();
     const vr = await unmask(dto.id);

@@ -8,7 +8,7 @@ import {
   type IdentityEnvelopeResponse, type IdentityView, type ReportFormInput, type ReportView,
   type ResourceBinding, type SessionView, type UnmaskFormInput, type VoteInput,
 } from "../contracts/api";
-import { hashCiphertext, hashIdeaV1, hashReportV1 } from "../contracts/encoding";
+import { canonicalAccused, hashCiphertext, hashIdeaV1, hashReportV1 } from "../contracts/encoding";
 
 export interface AuthSession {
   authenticated: boolean;
@@ -160,7 +160,7 @@ export function createVoiceVaultLive(options: LiveOptions) {
     const f = isObj(input) ? input : ({} as Record<string, unknown>);
     const title = text(f.title), evidenceDetails = text(f.evidenceDetails);
     const accused = Array.isArray(f.accusedPersonIds) ? f.accusedPersonIds.filter((x): x is string => typeof x === "string" && !!x) : [];
-    const accusedPersonIds = [...new Set(accused)].sort();
+    const accusedPersonIds = canonicalAccused(accused);
     if (!title.trim() || !evidenceDetails.trim() || accusedPersonIds.length === 0) {
       return fail("INVALID_REQUEST", "title, evidenceDetails và ít nhất một accusedPersonIds bắt buộc", { enforcement: "CLIENT" });
     }
