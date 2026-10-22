@@ -45,7 +45,7 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource, options: { simula
       role: authenticated ? role : null, roles,
       organizationId: value.organizationId,
       // HTTP submissions remain locked until encrypted-envelope provenance is verified.
-      capabilities: { canSubmit: simulated && cap.includes("submitIdea"), canProposeCouncil: false },
+      capabilities: { canSubmit: simulated && cap.includes("submitIdea"), canProposeCouncil: authenticated && cap.includes("proposeCouncilChange") },
     };
   }
   function idea(data: unknown) {
@@ -94,10 +94,12 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource, options: { simula
       capabilities: { canRequestUnmask: cap.includes("requestUnmask") },
     };
   }
+  function councilChange(data: unknown) {
+    const value = record(data);
+    return { ...value, id: value.id, status: value.state, voting: value.voting ? voting(value.voting) : null, capabilities: { canApply: simulated && strings(value.capabilities).includes("apply") } };
+  }
   const runtime = {
     contractVersion: "v1", mode: "LIVE", simulatedTide: simulated,
-    // The API has no council-change service yet; the UI shows a note instead of an outage.
-    features: { councilChanges: false },
     init: () => mapped("init", [], session),
     getSession: () => mapped("getSession", [], session),
     login: () => mapped("login", [], session),
@@ -116,7 +118,7 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource, options: { simula
     getVotingRequest: (id?: unknown) => mapped("getVotingRequest", [id], voting),
     listMyVotingRequests: (query?: unknown) => mapped("listMyVotingRequests", [query], (data) => page(data, voting)),
     castVote: (id?: unknown, input?: unknown) => mapped("castVote", [id, input], voting),
-    getCouncil: () => mapped("getCouncil", [], (data) => ({ ...record(data), capabilities: { canPropose: false } })),
+    getCouncil: () => mapped("getCouncil", [], (data) => { const value = record(data); return { ...value, capabilities: { canPropose: strings(value.capabilities).includes("propose") } }; }),
     listAudit: (query?: unknown) => mapped("listAudit", [query], (data) => page(data, (item) => {
       const value = record(item);
       return { id: value.id, action: value.action, targetId: value.resourceId, enforcement: value.source, createdAt: value.occurredAt, actor: "Recorded action", outcome: value.result === "OK" ? "ALLOWED" : value.result };
@@ -126,9 +128,9 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource, options: { simula
       ? (kind?: unknown, id?: unknown, round?: unknown) => mapped("revealIdentity", [kind, id, round], (data) => { const v = record(data); return { displayName: v.displayName, contact: v.contact ?? null, simulated: true }; })
       : async (..._args: unknown[]) => unavailable(),
     endorseIdea: (id?: unknown, expectedVersion?: unknown) => mapped("endorseIdea", [id, expectedVersion], idea),
-    listCouncilChanges: async (..._args: unknown[]) => unavailable(),
-    submitCouncilChange: async (..._args: unknown[]) => unavailable(),
-    applyCouncilChange: async (..._args: unknown[]) => unavailable(),
+    listCouncilChanges: (query?: unknown) => mapped("listCouncilChanges", [query], (data) => page(data, councilChange)),
+    submitCouncilChange: (input?: unknown) => mapped("submitCouncilChange", [input], councilChange),
+    applyCouncilChange: simulated ? (id?: unknown, expectedCouncilVersion?: unknown) => mapped("applyCouncilChange", [id, expectedCouncilVersion], councilChange) : async (..._args: unknown[]) => unavailable(),
   };
   return runtime;
 }

@@ -31,11 +31,14 @@ function fakeServer(svc: Services, calls: Call[]): typeof fetch {
     const parts = url.pathname.replace(/^\/api\/v1/, "").split("/").filter(Boolean);
     const m = init?.method ?? "GET";
     let result;
-    const key = `${m} /${parts.map((s, i) => (i % 2 === 1 && s !== "mine" ? ":id" : s)).join("/")}`;
+    const key = parts[0] === "council" && parts[1] === "change-requests" ? `${m} /council/change-requests`
+      : `${m} /${parts.map((s, i) => (i % 2 === 1 && s !== "mine" ? ":id" : s)).join("/")}`;
     switch (key) {
       case "GET /me": result = await svc.getMe(actor!); break;
       case "GET /directory": result = await svc.getDirectory(actor!); break;
       case "GET /council": result = await svc.getCouncil(actor!); break;
+      case "GET /council/change-requests": result = await svc.listCouncilChanges(actor!, q); break;
+      case "POST /council/change-requests": result = await svc.submitCouncilChange(actor!, body); break;
       case "GET /audit": result = await svc.listAudit(actor!, q); break;
       case "GET /ideas": result = await svc.listIdeas(actor!, q); break;
       case "POST /ideas": result = await svc.createIdea(actor!, body); break;
@@ -104,14 +107,6 @@ describe("shape runtime (chép từ tests/p0/mock-runtime.contract.test.mjs)", (
   it("mọi method luôn resolve ApiResult, kể cả khi thiếu tham số", async () => {
     const runtime = live("subject-an");
     for (const name of RUNTIME_METHODS) await call(runtime, name);
-  });
-
-  it("method ngoài P1 trả POLICY_UNAVAILABLE / APP / không retry", async () => {
-    const runtime = live("subject-an");
-    for (const name of ["submitCouncilChange", "applyCouncilChange", "listCouncilChanges"]) {
-      const r = await call(runtime, name);
-      expect(r).toMatchObject({ ok: false, error: { code: "POLICY_UNAVAILABLE", enforcement: "APP", retryable: false } });
-    }
   });
 
   it("init trả SessionView không token; logout đưa về chưa đăng nhập", async () => {

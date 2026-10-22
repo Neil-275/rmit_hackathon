@@ -16,12 +16,18 @@ row under "In progress" and push before you begin, so nobody duplicates work.**
 1. Start TideCloak dev in Docker (`tideorg/tidecloak-dev`, named volume, loopback `:8080`) and run `init/tcinit.sh`.
    **Needs Tam:** first-admin enrollment in the browser and the real licence email (never a fake address).
 2. Real Tide `AuthAdapter` / `CryptoAdapter` for the LIVE bridge (`globalThis.VoiceVaultLiveConfig`); no stub defaults.
-3. API: council-change services — the UI already supports them in MOCK (endorsement landed on master `4cf9add`).
+3. Council apply over HTTP outside simulated mode needs Tide G3/G5 evidence (master decision).
 4. Verify G1–G5 against real Tide; keep sensitive endpoints locked until each gate passes.
 5. Update `contract-reconciliation.md` and old status docs to match the integrated mapper (they predate it).
 6. Architecture docs still say Tam cannot run Node/Docker — Tam can; update `architecture_toi.md`.
 
 ## Done and pushed
+
+- **Claude** — merged master `fb83648` (council governance: persisted proposals, old-roster voter selection, shared
+  voting, atomic apply). Kept master's council-locked voting transaction and STALE handling. Wired council apply end to
+  end (runtime → HTTP → service); HTTP apply stays `POLICY_UNAVAILABLE` unless `VOICEVAULT_AUTH_MODE=simulated`, like
+  the other locks. UI `canApply` follows the server's `apply` capability in simulated mode only. P0 61/61,
+  P1 **167/167**, UI 66/66, bridge ✓, build ✓.
 
 - **Claude** — end-to-end run on the integrated app (Next + API + SQLite + Simulated TideCloak), observed in Chrome:
   sign-in page → Chi sees 7 seeded ideas and 4 reports; director "View author" opens the approved idea's envelope;
@@ -83,7 +89,6 @@ row under "In progress" and push before you begin, so nobody duplicates work.**
 | Gap | Owner | Notes |
 | --- | --- | --- |
 | Real Tide adapters, enrollment, G1–G5 | Tam + Tung | Nothing in MOCK or APP tests proves enforcement |
-| Council-change API | Free | UI must not fake it; endorsement is done on master |
 | HTTP encrypted submissions / envelope release | Locked on purpose | Until real policy/provenance exists |
 | Real Windows run of every suite | Free (needs a Windows machine) | Paths are portable; not executed on Windows yet |
 | "Binh changes the author → denied" demo | Tung (method) → UI (button) | Needs a contract method |

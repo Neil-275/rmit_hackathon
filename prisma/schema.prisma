@@ -73,11 +73,50 @@ model VotingRequest {
   recipientSubject  String
   purpose           String
   nonce             String
+  payloadHash       String?
   expiresAt         DateTime
   createdAt         DateTime @default(now())
   votes             Vote[]
 
   @@index([organizationId, resourceKind, resourceId])
+}
+
+model CouncilState {
+  organizationId String @id
+  version Int
+  revision Int @default(0)
+  rosterHash String
+  membersJson String
+  policyJson String
+}
+
+model CouncilSnapshot {
+  organizationId String
+  version Int
+  rosterHash String
+  membersJson String
+  policyJson String
+  @@id([organizationId, version])
+}
+
+model CouncilChange {
+  id String @id
+  organizationId String
+  baseCouncilVersion Int
+  baseCouncilHash String
+  targetHash String
+  payloadHash String
+  reason String
+  requesterSubject String
+  proposedMembersJson String
+  proposedPolicyJson String
+  diffJson String
+  state String
+  votingRequestId String?
+  appliedCouncilVersion Int?
+  createdAt DateTime
+  @@unique([organizationId, baseCouncilVersion, targetHash])
+  @@index([organizationId, createdAt])
 }
 
 model Vote {

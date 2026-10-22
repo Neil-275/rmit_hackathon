@@ -255,9 +255,17 @@ export function createVoiceVaultLive(options: LiveOptions) {
       const s = seg(id);
       return s ? request("POST", `/ideas/${s}/endorse`, { contractVersion: CONTRACT_VERSION, expectedVersion }) : badId();
     }),
-    listCouncilChanges: outOfScope("listCouncilChanges"),
-    submitCouncilChange: outOfScope("submitCouncilChange"),
-    applyCouncilChange: outOfScope("applyCouncilChange"),
+    listCouncilChanges: safe(async (query?: unknown) => request("GET", `/council/change-requests${qs(query)}`)),
+    submitCouncilChange: safe(async (input?: unknown) => {
+      const f = isObj(input) ? input : {};
+      return request("POST", "/council/change-requests", { contractVersion: CONTRACT_VERSION, expectedCouncilVersion: f.expectedCouncilVersion,
+        reason: f.reason, proposedMembers: f.proposedMembers, proposedSelectionPolicy: f.proposedSelectionPolicy });
+    }),
+    applyCouncilChange: safe(async (id?: unknown, expectedCouncilVersion?: unknown) => {
+      const changeId = seg(id);
+      if (!changeId) return fail("INVALID_REQUEST", "cần id đề xuất", { enforcement: "CLIENT" });
+      return request("POST", `/council/change-requests/${changeId}/apply`, { contractVersion: CONTRACT_VERSION, expectedCouncilVersion });
+    }),
   };
   return runtime;
 }

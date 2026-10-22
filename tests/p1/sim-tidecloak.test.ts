@@ -51,4 +51,16 @@ describe("simulated TideCloak", () => {
     expect((await post()).status).toBe(201);
     expect(createIdea).toHaveBeenCalledOnce();
   });
+
+  it("keeps council apply locked over HTTP unless simulated mode is on, then dispatches to the service", async () => {
+    const applyCouncilChange = vi.fn(async () => ok({ id: "change", state: "APPLIED" }));
+    const handler = createHttpHandler({ authenticate: async () => ok({ subject: "subject-frank", organizationId: roster.organizationId, roles: ["employee"] }), getServices: () => ({ applyCouncilChange } as unknown as Services) });
+    const post = () => handler(new Request("https://app.test/api/v1/council/change-requests/change/apply", { method: "POST", headers: { authorization: "Bearer x.y.z" }, body: JSON.stringify({ contractVersion: "v1", expectedCouncilVersion: 1 }) }));
+    expect((await (await post()).json()).error).toMatchObject({ code: "POLICY_UNAVAILABLE", retryable: false });
+    expect(applyCouncilChange).not.toHaveBeenCalled();
+    vi.stubEnv("VOICEVAULT_AUTH_MODE", "simulated");
+    expect((await post()).status).toBe(200);
+    expect(applyCouncilChange).toHaveBeenCalledWith(expect.objectContaining({ subject: "subject-frank" }), "change", { contractVersion: "v1", expectedCouncilVersion: 1 });
+  });
 });
+

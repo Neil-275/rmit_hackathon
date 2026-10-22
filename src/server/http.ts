@@ -56,8 +56,9 @@ export function createHttpHandler(deps: Partial<HttpDeps> = {}) {
       // An APP vote/status cannot authorize cryptographic identity release. Also
       // block submissions until envelope provenance is verifiable: a TIDE_V1 tag,
       // ciphertext hash, or client-provided stub:base64 is not proof of encryption.
-      // Simulated TideCloak mode opts in explicitly: its envelopes are labelled simulations, not Tide ciphertext.
-      const locked = route.service.endsWith("IdentityEnvelope") || route.service === "createIdea" || route.service === "createReport";
+      // Simulated TideCloak mode opts in explicitly: its envelopes are labelled simulations, not Tide ciphertext,
+      // and council apply is APP governance without Tide G3/G5 evidence.
+      const locked = route.service.endsWith("IdentityEnvelope") || route.service === "createIdea" || route.service === "createReport" || route.service === "applyCouncilChange";
       if (locked && !simulatedAuthEnabled()) return json(unavailable());
       let input: unknown;
       if (request.method === "POST") {
@@ -76,6 +77,10 @@ export function createHttpHandler(deps: Partial<HttpDeps> = {}) {
         case "getMe": result = await service.getMe(actor); break;
         case "getDirectory": result = await service.getDirectory(actor); break;
         case "getCouncil": result = await service.getCouncil(actor); break;
+        case "submitCouncilChange": result = await service.submitCouncilChange(actor, input); break;
+        case "listCouncilChanges": result = await service.listCouncilChanges(actor, query); break;
+        case "getCouncilChange": result = await service.getCouncilChange(actor, id); break;
+        case "applyCouncilChange": result = await service.applyCouncilChange(actor, id, input); break;
         case "listIdeas": result = await service.listIdeas(actor, query); break;
         case "getIdea": result = await service.getIdea(actor, id); break;
         case "createIdea": result = await service.createIdea(actor, input); break;
@@ -93,7 +98,7 @@ export function createHttpHandler(deps: Partial<HttpDeps> = {}) {
         case "listAudit": result = await service.listAudit(actor, query); break;
         default: return json(unavailable());
       }
-      return json(result, ["createUnmaskRequest", "createIdea", "createReport"].includes(route.service) ? 201 : 200);
+      return json(result, ["createUnmaskRequest", "createIdea", "createReport", "submitCouncilChange"].includes(route.service) ? 201 : 200);
     } catch {
       return json(fail("POLICY_UNAVAILABLE", "Service is temporarily unavailable", { retryable: true }));
     }

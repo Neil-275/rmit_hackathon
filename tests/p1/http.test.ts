@@ -1,18 +1,21 @@
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { createTempDb } from "./helpers/db";
 import { createAuthenticator } from "../../src/server/auth";
 import { createHttpHandler } from "../../src/server/http";
 import { createServices, type Services } from "../../src/server/services";
 import { loadRoster } from "../../src/server/roster-file";
 import { fail, ok, type Actor } from "../../src/contracts/api";
-import type { PrismaClient } from "@prisma/client";
 
 const actor: Actor = { subject: "subject-an", organizationId: "org-demo", roles: ["employee"] };
 const config = { "auth-server-url": "https://identity.example", realm: "voicevault", resource: "voicevault-web" };
 const request = (path: string, init: RequestInit = {}) => new Request(`https://app.example/api/v1${path}`, {
   ...init, headers: { authorization: "Bearer signed-token", ...init.headers },
 });
-const services = () => createServices({ prisma: {} as PrismaClient, roster: loadRoster(path.resolve(__dirname, "fixtures/roster.json")) });
+let httpDb: ReturnType<typeof createTempDb>;
+beforeAll(() => { httpDb = createTempDb(); });
+afterAll(async () => { await httpDb?.cleanup(); });
+const services = () => createServices({ prisma: httpDb.prisma, roster: loadRoster(path.resolve(__dirname, "fixtures/roster.json")) });
 
 describe("HTTP authentication boundary", () => {
   it.each([undefined, "", "Basic secret", "Bearer", "Bearer a b", "Bearer stub:identity"])("denies malformed credentials %s before services", async (authorization) => {
