@@ -4,3 +4,16 @@ public/ui/tests/.artifacts/
 debug.log
 public/ui/tests/red-runtime.log
 taste-skill-main/
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+tidecloak-data/
+tidecloak.json
+init/.realm_name
+*.db
+*.db-journal
+public/integration/runtime.generated.js
