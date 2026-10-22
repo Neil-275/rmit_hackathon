@@ -1,6 +1,5 @@
-// Đọc và kiểm tra config/roster.json (council, persona, directory). Placeholder cho tới khi có subject Tide thật.
-import { readFileSync } from "node:fs";
-import path from "node:path";
+// Kiểm tra config/roster.json (council, persona, directory). Placeholder cho tới khi có subject Tide thật.
+// Đọc file nằm ở roster-file.ts để bundle production không phải trace fs động.
 import { createHash } from "node:crypto";
 import type { CouncilMember, DirectoryPerson, SelectionPolicy } from "./domain/council";
 
@@ -65,6 +64,3 @@ export function parseRoster(raw: unknown): Roster {
   };
 }
 
-export function loadRoster(file = path.join(process.cwd(), "config", "roster.json")): Roster {
-  return parseRoster(JSON.parse(readFileSync(file, "utf8")));
-}

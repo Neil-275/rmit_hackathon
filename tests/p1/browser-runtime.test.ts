@@ -5,7 +5,7 @@ import {
   createStubAuth, createStubCrypto, createVoiceVaultLive, type AuthSession,
 } from "../../src/integration/browser-runtime";
 import { createServices, httpStatusOf, type Services } from "../../src/server/services";
-import { loadRoster } from "../../src/server/roster";
+import { loadRoster } from "../../src/server/roster-file";
 import type { Actor } from "../../src/contracts/api";
 import { createTempDb } from "./helpers/db";
 import { RUNTIME_METHODS, UUID_RE, assertApiResult, findForbiddenKeys, quorumFor, toPlain } from "./helpers/contract.mjs";

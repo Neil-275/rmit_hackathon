@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import path from "node:path";
 import type { PrismaClient } from "@prisma/client";
 import { createServices, httpStatusOf, type Services } from "../../src/server/services";
-import { loadRoster } from "../../src/server/roster";
+import { loadRoster } from "../../src/server/roster-file";
 import { createTempDb } from "./helpers/db";
 import { actor, ideaDto, reportDto } from "./helpers/dto";
 import { assertApiResult, findForbiddenKeys, quorumFor } from "./helpers/contract.mjs";

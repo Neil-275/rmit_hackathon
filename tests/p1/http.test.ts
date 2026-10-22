@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createAuthenticator } from "../../src/server/auth";
 import { createHttpHandler } from "../../src/server/http";
 import { createServices, type Services } from "../../src/server/services";
-import { loadRoster } from "../../src/server/roster";
+import { loadRoster } from "../../src/server/roster-file";
 import { fail, ok, type Actor } from "../../src/contracts/api";
 import type { PrismaClient } from "@prisma/client";
 

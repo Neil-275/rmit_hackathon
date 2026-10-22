@@ -8,21 +8,24 @@ row under "In progress" and push before you begin, so nobody duplicates work.**
 
 | Item | Who | Started | Files |
 | --- | --- | --- | --- |
-| Fix `npm run build` TypeScript failure (TS7016 for `tests/p1/helpers/contract.mjs`) | Claude (for Tam) | 2026-10-22 | `tsconfig.json`, `tests/p1/**` |
 | Mac + Windows runbook (setup, tests, build, run) linked from README; portable full UI test command | Claude (for Tam) | 2026-10-22 | `docs/RUNBOOK.md`, `README.md`, `package.json` scripts |
 
 ## Next — free to claim (in this order)
 
-1. Run the whole integrated check on the merged tree: `test:p0`, `test:p1`, P1 type-check, bridge check, full UI suite, `npm run build`.
-2. Start TideCloak dev in Docker (`tideorg/tidecloak-dev`, named volume, loopback `:8080`) and run `init/tcinit.sh`.
+1. Start TideCloak dev in Docker (`tideorg/tidecloak-dev`, named volume, loopback `:8080`) and run `init/tcinit.sh`.
    **Needs Tam:** first-admin enrollment in the browser and the real licence email (never a fake address).
-3. Real Tide `AuthAdapter` / `CryptoAdapter` for the LIVE bridge (`globalThis.VoiceVaultLiveConfig`); no stub defaults.
-4. API: idea endorsement (`ENDORSED` status) and council-change services — the UI already supports both in MOCK.
-5. Verify G1–G5 against real Tide; keep sensitive endpoints locked until each gate passes.
-6. Update `contract-reconciliation.md` and old status docs to match the integrated mapper (they predate it).
-7. Architecture docs still say Tam cannot run Node/Docker — Tam can; update `architecture_toi.md`.
+2. Real Tide `AuthAdapter` / `CryptoAdapter` for the LIVE bridge (`globalThis.VoiceVaultLiveConfig`); no stub defaults.
+3. API: idea endorsement (`ENDORSED` status) and council-change services — the UI already supports both in MOCK.
+4. Verify G1–G5 against real Tide; keep sensitive endpoints locked until each gate passes.
+5. Update `contract-reconciliation.md` and old status docs to match the integrated mapper (they predate it).
+6. Architecture docs still say Tam cannot run Node/Docker — Tam can; update `architecture_toi.md`.
 
 ## Done and pushed
+
+- **Claude** — production build is **green**: root `tsconfig.json` excludes `tests/` (P1 keeps its own tsconfig and
+  type-check); production loads `config/roster.json` by static import, file loading moved to `roster-file.ts` for
+  tests/scripts, so the whole-project trace warning is gone. Full check on macOS: `npm run build` ✓, P0 **61/61**,
+  P1 **124/124**, P1 `tsc` ✓, bridge check ✓, UI **65/65**.
 
 - **Claude** `36c446f` — code-review fixes on the UI: a failure arriving after a form dialog closed is now reported
   (a report could look filed when it was not); blocked-file hint only on `file://` and only if the app never mounted;
@@ -40,7 +43,6 @@ row under "In progress" and push before you begin, so nobody duplicates work.**
 
 | Gap | Owner | Notes |
 | --- | --- | --- |
-| Production build | Claude (in progress) | Fails at Next's TypeScript phase; compilation itself passes |
 | Real Tide adapters, enrollment, G1–G5 | Tam + Tung | Nothing in MOCK or APP tests proves enforcement |
 | Endorsement + council-change API | Free | UI must not fake them |
 | HTTP encrypted submissions / envelope release | Locked on purpose | Until real policy/provenance exists |
