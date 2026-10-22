@@ -10,11 +10,18 @@
     "build": "next build",
     "start": "next start",
     "init": "bash init/tcinit.sh",
+    "db:validate": "prisma validate",
+    "db:generate": "prisma generate",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
     "test:p0": "node --test tests/p0/",
+    "test:e2e": "node --test tests/integration/verify-e2e.mjs",
     "test:ui:file": "node --test tests/p0/ui-file.smoke.test.mjs"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.0",
     "@tidecloak/nextjs": "0.13.33",
+    "better-sqlite3": "^11.10.0",
     "next": "16.4.2",
     "react": "19.3.0",
     "react-dom": "19.3.0"
@@ -24,9 +31,11 @@
     "sharp": "^0.35.3"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "24.0.13",
     "@types/react": "19.1.8",
     "jsdom": "26.1.0",
+    "prisma": "^6.19.0",
     "typescript": "5.8.3"
   }
 }

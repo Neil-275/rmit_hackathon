@@ -18,16 +18,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const token = authHeader.split(' ')[1]
 
   try {
-    const user = await verifyTideCloakToken(tcConfig, token, [ALLOWED_ROLE]) as Record<string, any>
+    const activeConfig = {
+      ...tcConfig,
+      tokenSignatureAlgorithms: tcConfig.tokenSignatureAlgorithms || ['RS256', 'ES256', 'EdDSA']
+    }
+    const user = await verifyTideCloakToken(activeConfig, token, [ALLOWED_ROLE]) as Record<string, any>
 
     if (!user) {
       return NextResponse.json(
-        { error: 'Forbidden: Invalid token or insufficient role' },
+        { error: 'Forbidden: Invalid token or insufficient role', configRealm: tcConfig.realm, algorithms: tcConfig.tokenSignatureAlgorithms },
         { status: 403 }
       )
     }
     return NextResponse.json(
-      { vuid: user.vuid, userkey: user.tideuserkey },
+      { ok: true, subject: user.sub, username: user.preferred_username, roles: user.realm_access?.roles },
       { status: 200 }
     )
   } catch (err) {

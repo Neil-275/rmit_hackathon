@@ -11,4 +11,6 @@ tidecloak.json
 init/.realm_name
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 public/integration/runtime.generated.js

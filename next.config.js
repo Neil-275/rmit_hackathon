@@ -7,5 +7,6 @@ const nextConfig = {
       { source: "/ui", destination: "/ui/index.html", permanent: false },
     ]
   },
+  serverExternalPackages: ['better-sqlite3'],
 }
 module.exports = nextConfig

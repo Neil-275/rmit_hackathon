@@ -1,0 +1,103 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id          String   @id @default(uuid())
+  subject     String   @unique
+  username    String   @unique
+  displayName String
+  email       String?
+  rolesJson   String   @default("[\"employee\"]")
+  department  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Idea {
+  id                      String  @id
+  title                   String
+  description             String
+  category                String
+  status                  String
+  version                 Int
+  endorsementCount        Int     @default(0) @map("endorsement_count")
+  publishCreditOnApproval Int     @default(1) @map("publish_credit_on_approval")
+  publicCreditJson        String? @map("public_credit_json")
+  decisionReason          String? @map("decision_reason")
+  authorSubject           String  @map("author_subject")
+  authorDisplayName       String  @map("author_display_name")
+  createdAt               String  @map("created_at")
+
+  @@map("ideas")
+}
+
+model Report {
+  id                  String  @id
+  title               String
+  summary             String
+  status              String
+  version             Int
+  accusedPersonIdsJson String @map("accused_person_ids_json")
+  councilVersion      Int     @map("council_version")
+  councilRosterHash   String  @map("council_roster_hash")
+  voterCount          Int?    @map("voter_count")
+  quorumRequired      Int?    @map("quorum_required")
+  votingRequestId     String? @map("voting_request_id")
+  reporterSubject     String  @map("reporter_subject")
+  reporterDisplayName String  @map("reporter_display_name")
+  createdAt           String  @map("created_at")
+
+  @@map("reports")
+}
+
+model VotingRequest {
+  id                  String @id
+  operation           String
+  resourceKind        String @map("resource_kind")
+  resourceId          String @map("resource_id")
+  state               String
+  version             Int
+  purpose             String
+  voterCount          Int    @map("voter_count")
+  quorumRequired      Int    @map("quorum_required")
+  votersJson          String @map("voters_json")
+  validApprovals      Int    @default(0) @map("valid_approvals")
+  independentApproved Int    @default(0) @map("independent_approved")
+  councilVersion      Int    @map("council_version")
+  contextHash         String @map("context_hash")
+  createdAt           String @map("created_at")
+  expiresAt           String @map("expires_at")
+
+  @@map("voting_requests")
+}
+
+model Council {
+  version             Int    @id
+  rosterHash          String @map("roster_hash")
+  membersJson         String @map("members_json")
+  selectionPolicyJson String @map("selection_policy_json")
+
+  @@map("council")
+}
+
+model Audit {
+  id               String  @id
+  at               String
+  action           String
+  outcome          String
+  source           String
+  resourceKind     String  @map("resource_kind")
+  resourceId       String  @map("resource_id")
+  actorDisplayName String? @map("actor_display_name")
+  requestId        String  @map("request_id")
+
+  @@map("audit")
+}
