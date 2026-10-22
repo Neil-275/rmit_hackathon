@@ -65,6 +65,18 @@ export function computeEligible(
       current = byId.get(current)?.managerId ?? null;
     }
   }
+  // Also exclude members who report (directly or indirectly) to an accused person: a subordinate deciding
+  // whether to unmask a report about their own manager is a conflict of interest too.
+  const accused = new Set(accusedIds);
+  for (const member of roster) {
+    const seen = new Set<string>();
+    let current = byId.get(member.subject)?.managerId ?? null;
+    while (current && !seen.has(current)) {
+      if (accused.has(current)) { excluded.add(member.subject); break; }
+      seen.add(current);
+      current = byId.get(current)?.managerId ?? null;
+    }
+  }
   const eligible = roster
     .filter((m) => m.active && !excluded.has(m.subject))
     .map((m) => ({ id: m.subject, independent: m.independent }));

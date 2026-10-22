@@ -23,6 +23,12 @@ row under "In progress" and push before you begin, so nobody duplicates work.**
 
 ## Done and pushed
 
+- **Claude** — demo seed `npm run seed:demo` (`scripts/seed-demo.ts`): 7 ideas (under review / endorsed / approved
+  with and without credit / rejected) and 4 reports (jury collecting, READY, DENIED, awaiting eligible jury) created
+  **through the HTTP API** with Simulated TideCloak tokens, so every record passes auth, roles, CoI, hashing, audit.
+  Also `npm run test:ui:all` (full UI suite, portable). **Rule change for core review:** CoI now also excludes council
+  members who report to an accused person (MOCK already did; spec §10.2 "management chains"). P1 **155/155**.
+
 - **Claude** — Simulated TideCloak, browser side: `public/sim-tidecloak/login.html` (synthetic users + roles, same-origin
   return only), `src/integration/sim-tidecloak-auth.ts` (AuthAdapter/CryptoAdapter with the real adapters' shape).
   The LIVE factory is now async and uses the simulation only when no host Tide adapter is configured **and** the

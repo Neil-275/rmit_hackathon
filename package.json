@@ -17,7 +17,9 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "build:bridge": "node scripts/build-bridge.mjs",
-    "test:ui": "node --test public/ui/tests/runtime.test.cjs"
+    "test:ui": "node --test public/ui/tests/runtime.test.cjs",
+    "seed:demo": "node scripts/seed-demo.mjs",
+    "test:ui:all": "node --test public/ui/tests/runtime.test.cjs public/ui/tests/browser.test.cjs"
   },
   "dependencies": {
     "@tidecloak/nextjs": "0.13.33",

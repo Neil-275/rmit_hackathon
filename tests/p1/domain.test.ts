@@ -88,6 +88,22 @@ describe("computeEligible", () => {
     expect(r.value.excluded).toEqual(["binh", "chi", "eva", "frank"]);
   });
 
+  it("also excludes council members who report to an accused person (directly or indirectly)", () => {
+    const reportsUp: DirectoryPerson[] = [
+      { id: "chi", displayName: "Chi" },
+      { id: "eva", displayName: "Eva", managerId: "chi" },
+      { id: "frank", displayName: "Frank", managerId: "eva" },
+      { id: "grace", displayName: "Grace" },
+      { id: "henry", displayName: "Henry", managerId: "chi" },
+      { id: "iris", displayName: "Iris" },
+    ];
+    const r = computeEligible(roster, ["chi"], reportsUp);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.eligible.map((e) => e.id)).toEqual(["grace"]);
+    expect(r.value.excluded).toEqual(["chi", "eva", "frank", "henry"]);
+  });
+
   it("accused không có trong directory bị từ chối", () => {
     const r = computeEligible(roster, ["ghost"], directory);
     expect(!r.ok && r.code).toBe("UNKNOWN_PERSON");
