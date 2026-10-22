@@ -1,12 +1,4 @@
 
-
-## Run the current UI
-
-Open [public/ui/index.html](public/ui/index.html) directly in Chrome/Edge; Next.js and Docker are unnecessary.
-This is a **MOCK using synthetic data**, with no TideCloak/LIVE backend connection. See the
-[usage guide](public/ui/README.md).
-The sections below describe product goals and architecture that require verification during LIVE integration.
-
 ## Project overview
 
 **VoiceVault** is a proposed cryptographically enforced employee voice platform protecting bottom-up ideas and whistleblowing reports without requiring employees to trust their organization's hierarchy or administrators.
