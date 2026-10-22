@@ -81,7 +81,10 @@
       var unavailable=!sessionResult.ok&&sessionResult.error.code!=='UNAUTHENTICATED';
       state.session=sessionResult.ok?sessionResult.data:{authenticated:false,displayName:unavailable?'Session unavailable':'Signed out',capabilities:{}};
       var names=['ideas','reports','council','changes','audit','directory'],methods=['listIdeas','listReports','getCouncil','listCouncilChanges','listAudit','getDirectory'];
-      if(state.session.authenticated){var results=await Promise.all(methods.map(function(method){return ctx.call(method,[{}]);}));if(ticket!==revision)return;names.forEach(function(name,index){state.results[name]=results[index];state[name]=results[index].ok?results[index].data:(['ideas','reports','changes','audit'].includes(name)?{items:[]}:name==='directory'?{people:[]}:null);});}
+      if(state.session.authenticated){var results=await Promise.all(methods.map(function(method){
+        // A runtime may declare a feature absent from its build; skip the call instead of showing an outage.
+        if(method==='listCouncilChanges'&&V.isOff(ctx,'changes'))return {ok:true,contractVersion:'v1',data:{items:[],nextCursor:null}};
+        return ctx.call(method,[{}]);}));if(ticket!==revision)return;names.forEach(function(name,index){state.results[name]=results[index];state[name]=results[index].ok?results[index].data:(['ideas','reports','changes','audit'].includes(name)?{items:[]}:name==='directory'?{people:[]}:null);});}
       else {V.closeDialog();state.ideas={items:[]};state.reports={items:[]};state.changes={items:[]};state.audit={items:[]};state.council=null;state.directory={people:[]};state.results={};}
       state.results.session=unavailable?sessionResult:null;
       ctx.loading=false;controls();renderPage();

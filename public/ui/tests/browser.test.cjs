@@ -629,3 +629,13 @@ test('votes search matches report evidence, purpose shows without a recipient, a
   await page.evaluate(`{const s=document.getElementById('search');s.value='zzz-no-match';s.dispatchEvent(new Event('input'))}`);
   assert.match(await page.evaluate('document.getElementById("page-content").innerText'),/No matching proposals/);
 });
+
+test('a runtime that declares council changes absent shows a note and keeps report rounds counted',async()=>{
+  await persona('frank');
+  await page.evaluate(`window.VoiceVaultRuntime.features={councilChanges:false};window.VoiceVaultRuntime.listCouncilChanges=()=>{window.changesCalled=true;return Promise.resolve({ok:false,contractVersion:'v1',error:{code:'POLICY_UNAVAILABLE',message:'x',enforcement:'APP',retryable:false}});};`);
+  await nav('overview');
+  assert.equal(await page.evaluate('window.changesCalled===true'),false);
+  assert.equal(await page.evaluate('document.querySelectorAll("#page-content [data-load-error=changes]").length'),0);
+  assert.match(await page.evaluate('document.querySelector("[data-feature-off=changes]").textContent'),/not available in this build/);
+  assert.match(await page.evaluate('document.querySelector("[data-metric-page=votes]").innerText'),/Votes awaiting you\s+3/);
+});

@@ -96,6 +96,8 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource, options: { simula
   }
   const runtime = {
     contractVersion: "v1", mode: "LIVE", simulatedTide: simulated,
+    // The API has no council-change service yet; the UI shows a note instead of an outage.
+    features: { councilChanges: false },
     init: () => mapped("init", [], session),
     getSession: () => mapped("getSession", [], session),
     login: () => mapped("login", [], session),

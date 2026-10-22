@@ -70,6 +70,9 @@
     if(!result||result.ok)return null;
     return V.el('div',{class:'error-state',role:'alert','data-load-error':key},V.icon('alert',26),V.el('h2',{},title),V.el('p',{},result.error.message),V.tag(result.error.code,'amber'),' ',V.source(result.error.enforcement),result.error.retryable===false?null:V.button('Try again',function(){ctx.refresh();},{class:'button secondary'}));
   };
+  // Features the runtime declares absent from its build are shown as a note, not as an outage.
+  V.isOff=function(ctx,key){var f=ctx.runtime.features;return key==='changes'&&!!f&&f.councilChanges===false;};
+  V.offNote=function(ctx,key,text){return V.isOff(ctx,key)?V.el('p',{class:'muted more-note','data-feature-off':key},V.icon('lock',13),' '+text):null;};
   V.more=function(page){return page&&page.nextCursor?V.el('p',{class:'muted more-note'},'Showing the first '+page.items.length+' records. More exist, but paging is not available yet.'):null;};
   V.tag=function(label,kind){return V.el('span',{class:'tag '+(kind||'')},label);};
   V.categories={PROCESS:'Process',CULTURE:'Culture',SUSTAINABILITY:'Sustainability',PRODUCT:'Product'};
