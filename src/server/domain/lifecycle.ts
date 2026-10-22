@@ -1,15 +1,14 @@
-// State machine ý tưởng và phản ánh (§7), bản P1 đã cắt endorse.
-// Idea:   UNDER_REVIEW -> APPROVED | REJECTED (director). Hai trạng thái sau là terminal.
+// Idea: UNDER_REVIEW -> ENDORSED -> APPROVED; rejection is terminal from either pending state.
 // Report: AWAITING_ELIGIBLE_JURY | INVESTIGATING -> RESOLVED.
 
-export type IdeaStatus = "UNDER_REVIEW" | "APPROVED" | "REJECTED";
+export type IdeaStatus = "UNDER_REVIEW" | "ENDORSED" | "APPROVED" | "REJECTED";
 export type ReportStatus = "AWAITING_ELIGIBLE_JURY" | "INVESTIGATING" | "RESOLVED";
 export type IdeaDecision = "APPROVE" | "REJECT";
 
 export type Transition<S> = { ok: true; status: S } | { ok: false; code: "VERSION_CONFLICT"; message: string };
 
 export function decideIdeaTransition(current: IdeaStatus, decision: IdeaDecision): Transition<IdeaStatus> {
-  if (current !== "UNDER_REVIEW") {
+  if ((current !== "UNDER_REVIEW" && current !== "ENDORSED") || (decision === "APPROVE" && current !== "ENDORSED")) {
     return { ok: false, code: "VERSION_CONFLICT", message: `ý tưởng đã ${current}, không quyết định lại` };
   }
   return { ok: true, status: decision === "APPROVE" ? "APPROVED" : "REJECTED" };

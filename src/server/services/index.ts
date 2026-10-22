@@ -6,7 +6,7 @@ import type { PrismaClient } from "@prisma/client";
 import {
   ERROR_HTTP_STATUS, MAX_PAGE_SIZE, fail, ok,
   validateCreateIdeaRequest, validateCreateReportRequest, validateCreateUnmaskRequest,
-  validateDecideIdeaRequest, validateListQuery, validateSubmitApprovalRequest,
+  validateDecideIdeaRequest, validateEndorseIdeaRequest, validateListQuery, validateSubmitApprovalRequest,
   type Actor, type ApiResult, type AuditEventView, type CouncilView, type DirectoryView,
   type IdeaView, type IdentityEnvelopeResponse, type Page, type ReportView, type SessionView,
   type UnmaskRequestView, type VotingRequestView, type ResourceKind,
@@ -92,13 +92,16 @@ export function createServices(deps: ServiceDeps) {
   const ideaView = (row: IdeaRow, actor: Actor): IdeaView => {
     const status = row.status as IdeaStatus;
     const capabilities: string[] = [];
-    if (hasRole(actor, "director") && status === "UNDER_REVIEW") capabilities.push("decide");
+    if (hasRole(actor, "manager") && status === "UNDER_REVIEW") capabilities.push("endorse");
+    if (hasRole(actor, "director") && (status === "UNDER_REVIEW" || status === "ENDORSED")) capabilities.push("decide");
     if (hasRole(actor, "director") && ideaIdentityOpenable(status, row.publishCreditOnApproval)) capabilities.push("revealIdentity");
     return {
       id: row.id, version: row.version, status, title: row.title, description: row.description,
       category: row.category, publishCreditOnApproval: row.publishCreditOnApproval,
       // Public credit cần artifact G4 đã xác minh; P1 chưa có nên luôn null.
       publicCredit: null,
+      endorsedBy: row.endorsedBySubject ? displayNameOf(row.endorsedBySubject) : null,
+      endorsedAt: row.endorsedAt?.toISOString() ?? null,
       capabilities, contentHash: row.contentHash, createdAt: row.createdAt.toISOString(),
       decidedAt: row.decidedAt ? row.decidedAt.toISOString() : null, decisionReason: row.decisionReason,
     };
@@ -172,6 +175,7 @@ export function createServices(deps: ServiceDeps) {
     if (denied) return denied;
     const capabilities = new Set<string>();
     if (hasRole(actor, "employee")) { capabilities.add("submitIdea"); capabilities.add("submitReport"); }
+    if (hasRole(actor, "manager")) capabilities.add("endorseIdea");
     if (hasRole(actor, "director")) { capabilities.add("decideIdea"); capabilities.add("revealIdeaIdentity"); }
     if (isOversight(actor)) capabilities.add("viewAudit");
     if (isCouncilMember(actor.subject)) capabilities.add("vote");
@@ -258,6 +262,31 @@ export function createServices(deps: ServiceDeps) {
     return ok(ideaView(row, actor));
   }
 
+  async function endorseIdea(actor: Actor, id: string, input: unknown): Result<IdeaView> {
+    const denied = guardOrg(actor);
+    if (denied) return denied;
+    if (!hasRole(actor, "manager")) return fail("FORBIDDEN", "A manager role is required to endorse an idea.");
+    const v = validateEndorseIdeaRequest(input);
+    if (!v.ok) return fail("INVALID_REQUEST", v.message);
+    const row = await prisma.idea.findFirst({ where: { id: String(id ?? "").toLowerCase(), organizationId: roster.organizationId } });
+    if (!row) return fail("NOT_FOUND", "Idea not found.");
+    const endorsed = await prisma.$transaction(async (tx) => {
+      const timestamp = now();
+      const changed = await tx.idea.updateMany({
+        where: { id: row.id, organizationId: roster.organizationId, version: v.value.expectedVersion, status: "UNDER_REVIEW" },
+        data: { status: "ENDORSED", version: { increment: 1 }, endorsedBySubject: actor.subject, endorsedAt: timestamp },
+      });
+      if (changed.count !== 1) return null;
+      await tx.auditEvent.create({ data: {
+        id: newId(), organizationId: roster.organizationId, action: "IDEA_ENDORSED",
+        resourceKind: "IDEA", resourceId: row.id, actorSubject: actor.subject,
+        source: "APP", result: "OK", occurredAt: timestamp,
+      } });
+      return tx.idea.findUniqueOrThrow({ where: { id: row.id } });
+    });
+    return endorsed ? ok(ideaView(endorsed, actor)) : fail("VERSION_CONFLICT", "The idea changed or is no longer awaiting endorsement.", { retryable: true });
+  }
+
   async function decideIdea(actor: Actor, id: string, input: unknown): Result<IdeaView> {
     const denied = guardOrg(actor);
     if (denied) return denied;
@@ -284,7 +313,7 @@ export function createServices(deps: ServiceDeps) {
     if (!hasRole(actor, "director")) return fail("FORBIDDEN", "chỉ director");
     const row = await prisma.idea.findFirst({ where: { id: String(id ?? "").toLowerCase(), organizationId: roster.organizationId } });
     if (!row) return fail("NOT_FOUND", "không tìm thấy ý tưởng");
-    if (row.status === "UNDER_REVIEW") return fail("VERSION_CONFLICT", "ý tưởng chưa được duyệt");
+    if (row.status === "UNDER_REVIEW" || row.status === "ENDORSED") return fail("VERSION_CONFLICT", "ý tưởng chưa được duyệt");
     if (!ideaIdentityOpenable(row.status as IdeaStatus, row.publishCreditOnApproval)) {
       await audit({ action: "IDEA_IDENTITY_ENVELOPE_DENIED", resourceKind: "IDEA", resourceId: row.id, result: "DENIED", actorSubject: actor.subject });
       return fail("FORBIDDEN", "không có consent hoặc ý tưởng bị từ chối");
@@ -525,7 +554,7 @@ export function createServices(deps: ServiceDeps) {
 
   return {
     getMe, getDirectory, getCouncil,
-    listIdeas, getIdea, createIdea, decideIdea, getIdeaIdentityEnvelope,
+    listIdeas, getIdea, createIdea, endorseIdea, decideIdea, getIdeaIdentityEnvelope,
     listReports, getReport, createReport, createUnmaskRequest, getReportIdentityEnvelope,
     listMyVotingRequests, getVotingRequest, castVote,
     listAudit,

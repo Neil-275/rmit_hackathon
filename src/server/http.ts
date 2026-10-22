@@ -40,7 +40,7 @@ export function createHttpHandler(deps: Partial<HttpDeps> = {}) {
       if (!pathname.startsWith(`${API_PREFIX}/`)) return json(fail("NOT_FOUND", "Route not found"));
       const routePath = pathname.slice(API_PREFIX.length);
       // These operations have no implemented policy or service contract yet.
-      if (/^\/council-changes(?:\/|$)/.test(routePath) || /^\/ideas\/[^/]+\/endorse(?:ments)?$/.test(routePath)) return json(unavailable());
+      if (/^\/council-changes(?:\/|$)/.test(routePath)) return json(unavailable());
       const matches = ROUTES.map((route) => ({
         route,
         match: routePath.match(new RegExp(`^${route.path.replace(/:id/g, "([^/]+)")}$`)),
@@ -75,6 +75,7 @@ export function createHttpHandler(deps: Partial<HttpDeps> = {}) {
         case "getCouncil": result = await service.getCouncil(actor); break;
         case "listIdeas": result = await service.listIdeas(actor, query); break;
         case "getIdea": result = await service.getIdea(actor, id); break;
+        case "endorseIdea": result = await service.endorseIdea(actor, id, input); break;
         case "decideIdea": result = await service.decideIdea(actor, id, input); break;
         case "listReports": result = await service.listReports(actor, query); break;
         case "getReport": result = await service.getReport(actor, id); break;

@@ -50,8 +50,9 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
     return {
       id: value.id, title: value.title, description: value.description, category: value.category,
       status: value.status, version: value.version, createdAt: value.createdAt,
+      endorsedBy: value.endorsedBy ?? null, endorsedAt: value.endorsedAt ?? null,
       publicCredit: typeof value.publicCredit === "string" ? { displayName: value.publicCredit } : null,
-      capabilities: { canEndorse: false, canDecide: cap.includes("decide"), canReveal: false },
+      capabilities: { canEndorse: cap.includes("endorse"), canDecide: cap.includes("decide"), canReveal: false },
     };
   }
   function voting(data: unknown) {
@@ -116,7 +117,7 @@ export function createVoiceVaultUIRuntime(core: RuntimeSource) {
     })),
     // No APP-only vote or director role can activate an unverified cryptographic release.
     revealIdentity: async (..._args: unknown[]) => unavailable(),
-    endorseIdea: async (..._args: unknown[]) => unavailable(),
+    endorseIdea: (id?: unknown, expectedVersion?: unknown) => mapped("endorseIdea", [id, expectedVersion], idea),
     listCouncilChanges: async (..._args: unknown[]) => unavailable(),
     submitCouncilChange: async (..._args: unknown[]) => unavailable(),
     applyCouncilChange: async (..._args: unknown[]) => unavailable(),

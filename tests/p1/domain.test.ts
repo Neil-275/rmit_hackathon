@@ -159,8 +159,10 @@ describe("tally / canCast", () => {
 });
 
 describe("lifecycle", () => {
-  it("idea: UNDER_REVIEW -> APPROVED/REJECTED, terminal không quyết định lại", () => {
-    expect(decideIdeaTransition("UNDER_REVIEW", "APPROVE")).toEqual({ ok: true, status: "APPROVED" });
+  it("idea: approval requires ENDORSED; rejection is terminal", () => {
+    expect(decideIdeaTransition("UNDER_REVIEW", "APPROVE").ok).toBe(false);
+    expect(decideIdeaTransition("ENDORSED", "APPROVE")).toEqual({ ok: true, status: "APPROVED" });
+    expect(decideIdeaTransition("ENDORSED", "REJECT")).toEqual({ ok: true, status: "REJECTED" });
     expect(decideIdeaTransition("UNDER_REVIEW", "REJECT")).toEqual({ ok: true, status: "REJECTED" });
     expect(decideIdeaTransition("REJECTED", "APPROVE").ok).toBe(false);
     expect(decideIdeaTransition("APPROVED", "REJECT").ok).toBe(false);

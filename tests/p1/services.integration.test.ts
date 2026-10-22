@@ -10,6 +10,7 @@ import { assertApiResult, findForbiddenKeys, quorumFor } from "./helpers/contrac
 const roster = loadRoster(path.resolve(__dirname, "../../config/roster.json"));
 const an = actor("subject-an");
 const chi = actor("subject-chi", ["employee", "director"]);
+const binh = actor("subject-binh", ["employee", "manager"]);
 const j1 = actor("subject-juror-1");
 const j2 = actor("subject-juror-2");
 const j3 = actor("subject-juror-3");
@@ -88,9 +89,10 @@ describe("ideas", () => {
     expectOk(await svc.createIdea(an, dto));
     expectErr(await svc.decideIdea(an, dto.id, { contractVersion: "v1", decision: "APPROVE", reason: "", expectedVersion: 1 }), "FORBIDDEN");
     expectErr(await svc.decideIdea(chi, dto.id, { contractVersion: "v1", decision: "APPROVE", reason: "", expectedVersion: 2 }), "VERSION_CONFLICT");
-    const approved = expectOk(await svc.decideIdea(chi, dto.id, { contractVersion: "v1", decision: "APPROVE", reason: "tốt", expectedVersion: 1 }));
-    expect(approved).toMatchObject({ status: "APPROVED", version: 2 });
-    expectErr(await svc.decideIdea(chi, dto.id, { contractVersion: "v1", decision: "REJECT", reason: "", expectedVersion: 2 }), "VERSION_CONFLICT");
+    expectOk(await svc.endorseIdea(binh, dto.id, { contractVersion: "v1", expectedVersion: 1 }));
+    const approved = expectOk(await svc.decideIdea(chi, dto.id, { contractVersion: "v1", decision: "APPROVE", reason: "tốt", expectedVersion: 2 }));
+    expect(approved).toMatchObject({ status: "APPROVED", version: 3 });
+    expectErr(await svc.decideIdea(chi, dto.id, { contractVersion: "v1", decision: "REJECT", reason: "", expectedVersion: 3 }), "VERSION_CONFLICT");
   });
 
   it("envelope ý tưởng chỉ cho director khi APPROVED + consent", async () => {
@@ -100,7 +102,8 @@ describe("ideas", () => {
     expectOk(await svc.createIdea(an, no));
     expectErr(await svc.getIdeaIdentityEnvelope(chi, yes.id), "VERSION_CONFLICT");
     for (const d of [yes, no]) {
-      expectOk(await svc.decideIdea(chi, d.id, { contractVersion: "v1", decision: "APPROVE", reason: "", expectedVersion: 1 }));
+      expectOk(await svc.endorseIdea(binh, d.id, { contractVersion: "v1", expectedVersion: 1 }));
+      expectOk(await svc.decideIdea(chi, d.id, { contractVersion: "v1", decision: "APPROVE", reason: "", expectedVersion: 2 }));
     }
     expectErr(await svc.getIdeaIdentityEnvelope(an, yes.id), "FORBIDDEN");
     expectErr(await svc.getIdeaIdentityEnvelope(chi, no.id), "FORBIDDEN");

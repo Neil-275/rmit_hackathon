@@ -251,7 +251,10 @@ export function createVoiceVaultLive(options: LiveOptions) {
     getCouncil: safe(async () => request("GET", "/council")),
     revealIdentity: safe(revealIdentity),
     listAudit: safe(async (query?: unknown) => request("GET", `/audit${qs(query)}`)),
-    endorseIdea: outOfScope("endorseIdea"),
+    endorseIdea: safe(async (id?: unknown, expectedVersion?: unknown) => {
+      const s = seg(id);
+      return s ? request("POST", `/ideas/${s}/endorse`, { contractVersion: CONTRACT_VERSION, expectedVersion }) : badId();
+    }),
     listCouncilChanges: outOfScope("listCouncilChanges"),
     submitCouncilChange: outOfScope("submitCouncilChange"),
     applyCouncilChange: outOfScope("applyCouncilChange"),

@@ -17,18 +17,19 @@ Cập nhật: **22/10/2026**. Đây là điểm bắt đầu để xem phần đ
 | Current round / expiry | Vòng READY hết hạn không phát hành envelope; service chỉ chấp nhận vòng hiện hành của report. HTTP envelope vẫn khóa. |
 | Voter decisions | Trả quyết định APPROVE/DENY thật của từng voter; không suy diễn `hasVoted` thành APPROVE. |
 | Session | API 401 không còn biến session adapter cũ thành connected; login lấy capabilities từ server. |
+| Endorse idea | Có backend/API/adapter: manager cùng org endorse một lần; lưu người/thời điểm và audit trong transaction, kiểm tra version; director chỉ APPROVE sau ENDORSED. Xem [hướng dẫn cập nhật DB](docs/integration/idea-endorsement.md). |
 | Browser bridge | Có `createVoiceVaultLiveRuntime()` bọc UI adapter, giữ voting purpose; không xuất stub auth/crypto ra global. Thiếu host auth adapter trả `POLICY_UNAVAILABLE`. |
 | Khóa tính năng nhạy cảm | UI adapter và HTTP giữ submit/reveal không khả dụng khi provenance ciphertext và policy chưa được kiểm chứng. |
 | Kiểm thử tích hợp | Có test payload từ SQLite/service qua HTTP dispatcher, adapter và DOM tĩnh; kiểm tra DENY, progress và không lộ ciphertext. |
 
 ## Kết quả kiểm tra
 
-Đã chạy lại P0/P1, UI, typecheck và Next build trên `master` sau khi gộp core continuation (`1db4b8f`). Cần chạy lại khi có thay đổi code tiếp theo.
+Kiểm tra gần nhất cho bản bổ sung Endorse idea ngày 22/10/2026. Cần chạy lại khi có thay đổi code tiếp theo.
 
 | Kiểm tra | Kết quả |
 | --- | --- |
 | P0 — `node --test "tests/p0/*.test.mjs"` | **61/61 pass** |
-| P1 — `node node_modules/vitest/vitest.mjs run --config tests/p1/vitest.config.mjs --reporter=dot` | **117/117 pass** |
+| P1 — `node node_modules/vitest/vitest.mjs run --config tests/p1/vitest.config.mjs --reporter=dot` | **134/134 pass**, gồm 18 regression Endorse idea |
 | UI — `& ./public/ui/tests/run.ps1 -Suite all` | **31/31 pass**, với bundle đã sinh |
 | TypeScript — `node node_modules/typescript/bin/tsc -p tests/p1/tsconfig.json` | **Pass**; test dùng cấu hình riêng, production vẫn kiểm tra kiểu |
 | Bridge — `node scripts/build-bridge.mjs --check` | **Pass** |
@@ -38,12 +39,13 @@ Cập nhật: **22/10/2026**. Đây là điểm bắt đầu để xem phần đ
 
 ## Còn cần làm — theo thứ tự ưu tiên
 
-- [ ] **Chốt contract UI/API với Tâm:** endorsement trước idea approval; category/status; assignment detail trước vòng vote đầu; public credit/verified; audit; capability và các shape còn khác nhau. Đối chiếu với `master` hiện tại, vì bảng reconciliation trên nhánh UI dùng baseline backend cũ.
+- [x] **Endorse idea backend/API/adapter:** manager endorsement, audit, kiểm tra version/concurrency và bắt buộc ENDORSED trước APPROVE đã triển khai; không sửa UI của Tâm.
+- [ ] **Chốt contract UI/API với Tâm:** category/status; assignment detail trước vòng vote đầu; public credit/verified; audit; capability và các shape còn khác nhau. Backend endorsement trước idea approval đã bổ sung; đối chiếu với code hiện tại, vì bảng reconciliation trên nhánh UI dùng baseline backend cũ.
 - [ ] **Tích hợp `work/ui-static`:** nhận phần sửa tương tác, review và exploratory testing của Tâm sau khi đối chiếu contract; chạy lại P0/P1 và browser suite trên cây đã gộp.
 - [ ] **Nối auth Tide thật cho UI:** cung cấp `window.VoiceVaultLiveConfig = { auth }` trước bootstrap; đối chiếu realm claims với server. Bridge hiện chỉ có điểm tiêm adapter, chưa cài adapter thật.
 - [ ] **Hoàn tất Tide/license/policy/crypto:** provisioning theo quy trình; kiểm chứng provenance ciphertext và quyền giải mã. Chỉ mở submission/envelope/reveal khi cơ chế thật được xác nhận; không dùng stub hoặc bypass để demo LIVE.
 - [ ] **Triển khai và kiểm chứng G1–G5 end-to-end**, gồm các trường hợp từ chối và bảo vệ identity; ghi bằng chứng thực tế.
-- [ ] **Hoàn tất chức năng còn thiếu:** council-change service và policy, endorsement, public-credit verification; thống nhất quy trình tạo vòng mới sau DENIED/EXPIRED và pagination vượt 50 bản ghi.
+- [ ] **Hoàn tất chức năng còn thiếu:** council-change service và policy, public-credit verification; thống nhất quy trình tạo vòng mới sau DENIED/EXPIRED và pagination vượt 50 bản ghi.
 - [ ] **Làm browser test độc lập với generated bundle:** test có tên “without a LIVE bundle” hiện kỳ vọng `POLICY_UNAVAILABLE`; khi bundle thật sự thiếu, bootstrap trả `LIVE_RUNTIME_UNAVAILABLE`. P0 đã có coverage riêng cho missing bundle.
 - [ ] **Xử lý cảnh báo roster filesystem tracing** trước khi đóng gói triển khai, rồi rà soát log riêng tư, cấu hình và chạy lại toàn bộ checks.
 

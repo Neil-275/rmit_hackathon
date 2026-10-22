@@ -24,6 +24,8 @@ model Idea {
   policyVersion           String
   status                  String
   version                 Int       @default(1)
+  endorsedBySubject       String?
+  endorsedAt              DateTime?
   decisionReason          String?
   decidedAt               DateTime?
   createdAt               DateTime  @default(now())

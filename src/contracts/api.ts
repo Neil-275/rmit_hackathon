@@ -41,7 +41,7 @@ export type ResourceKind = "IDEA" | "REPORT" | "COUNCIL_CHANGE";
 export type VotingOperation = "REVEAL_REPORT_IDENTITY" | "CHANGE_COUNCIL";
 export type Role = "employee" | "manager" | "director" | "auditor" | "it_admin";
 
-export type IdeaStatus = "UNDER_REVIEW" | "APPROVED" | "REJECTED";
+export type IdeaStatus = "UNDER_REVIEW" | "ENDORSED" | "APPROVED" | "REJECTED";
 export type ReportStatus = "AWAITING_ELIGIBLE_JURY" | "INVESTIGATING" | "RESOLVED";
 export type VotingState = "COLLECTING" | "READY" | "DENIED" | "EXPIRED" | "STALE";
 export type VoteDecision = "APPROVE" | "DENY";
@@ -126,6 +126,8 @@ export interface IdeaView {
   category: string;
   publishCreditOnApproval: boolean;
   publicCredit: string | null;
+  endorsedBy?: string | null;
+  endorsedAt?: string | null;
   capabilities: string[];
   contentHash?: string;
   createdAt?: string;
@@ -300,6 +302,11 @@ export interface DecideIdeaRequest {
   expectedVersion: number;
 }
 
+export interface EndorseIdeaRequest {
+  contractVersion: ContractVersion;
+  expectedVersion: number;
+}
+
 export interface CreateUnmaskRequest {
   contractVersion: ContractVersion;
   recipientSubject: string;
@@ -339,6 +346,7 @@ export const ROUTES: readonly RouteSpec[] = [
   { method: "GET", path: "/ideas", service: "listIdeas", request: "ListQuery(query)", response: "Page<IdeaView>" },
   { method: "POST", path: "/ideas", service: "createIdea", request: "CreateIdeaRequest", response: "IdeaView" },
   { method: "GET", path: "/ideas/:id", service: "getIdea", response: "IdeaView" },
+  { method: "POST", path: "/ideas/:id/endorse", service: "endorseIdea", request: "EndorseIdeaRequest", response: "IdeaView" },
   { method: "POST", path: "/ideas/:id/decision", service: "decideIdea", request: "DecideIdeaRequest", response: "IdeaView" },
   { method: "GET", path: "/ideas/:id/identity-envelope", service: "getIdeaIdentityEnvelope", response: "IdentityEnvelopeResponse" },
   { method: "GET", path: "/reports", service: "listReports", request: "ListQuery(query)", response: "Page<ReportView>" },
@@ -477,6 +485,14 @@ export function validateCreateReportRequest(v: unknown): Validation<CreateReport
       accusedPersonIds: [...new Set(accused as string[])].sort(),
       identityEnvelope: envelope(o.identityEnvelope, "REPORT", id),
     };
+  });
+}
+
+export function validateEndorseIdeaRequest(v: unknown): Validation<EndorseIdeaRequest> {
+  return run(() => {
+    const o = body(v);
+    need(Number.isSafeInteger(o.expectedVersion) && (o.expectedVersion as number) >= 1 && (o.expectedVersion as number) <= 2_147_483_647, "expectedVersion");
+    return { contractVersion: CONTRACT_VERSION, expectedVersion: o.expectedVersion as number };
   });
 }
 
