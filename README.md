@@ -12,7 +12,7 @@ The sections below describe product goals and architecture that require verifica
 **VoiceVault** is a proposed cryptographically enforced employee voice platform protecting bottom-up ideas and whistleblowing reports without requiring employees to trust their organization's hierarchy or administrators.
 
 ### Vision & originality
-Idea boxes and whistleblowing hotlines both fail because whoever controls the channel controls the speaker's identity. VoiceVault unifies them: **Sealed-Credited Ideas** keep authors anonymous during review—staying permanently encrypted if rejected to prevent ridicule, while unlocking credit upon approval with consent. **Protected Reports** pair conflict-free random jury selection with threshold identity decryption.
+Idea boxes and whistleblowing hotlines both fail because whoever controls the channel controls the speaker's identity. VoiceVault unifies them: **Sealed-Credited Ideas** keep authors anonymous during review—if rejected, the identity is not published, reducing fear of ridicule, while unlocking credit upon approval with consent. **Protected Reports** pair conflict-free random jury selection with threshold identity decryption.
 
 ### Trust constraint insight
 Employees withhold bold ideas fearing ridicule if judged infeasible, or credit theft by middle managers if successful. Whistleblowers stay silent because admins or executives can unmask them—especially when the accused sits on the review board. Removing unilateral control is the intended protection.

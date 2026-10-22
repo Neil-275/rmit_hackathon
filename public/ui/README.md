@@ -3,6 +3,11 @@
 Open `index.html` in Chrome or Edge (double-click it, or drag the file into the browser).
 Next.js, npm, Docker and a server are unnecessary. The address must start with `file://`.
 
+**macOS:** if the page shows a message about files next to this page, the browser lacks permission to read
+the folder (common under `~/Downloads`, `~/Desktop` or `~/Documents`). Allow it in System Settings → Privacy &
+Security → Files and Folders (or Full Disk Access), then quit and reopen the browser, or keep the project in a
+folder outside those three. **Windows:** extract the ZIP first; if scripts are blocked, choose Unblock in the file properties.
+
 This is a **MOCK**, using synthetic data stored only in the tab's memory. Reloading
 restores the sample data. This version performs no encryption, real authentication or TideCloak operations.
 
@@ -24,10 +29,14 @@ Closing the identity view, navigating, switching personas or signing out clears 
 
 ## Tests
 
-Run from the project root in PowerShell:
+Run from the project root:
 
 ```powershell
-& ./public/ui/tests/run.ps1 -Suite all
+& ./public/ui/tests/run.ps1 -Suite all     # Windows PowerShell
+```
+
+```sh
+./public/ui/tests/run.sh all                # macOS / Linux
 ```
 
 You can select `runtime` or `browser`. The script uses Node from PATH, or the Node

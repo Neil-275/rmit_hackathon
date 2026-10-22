@@ -211,3 +211,331 @@ for (const cancellation of ['persona', 'navigation', 'logout']) {
     assert.equal(await page.evaluate('document.body.innerText.includes("late@example.test")'), false);
   });
 }
+
+const cardText=title=>`[...document.querySelectorAll('.idea-card')].find(card=>card.querySelector('h3').textContent===${JSON.stringify(title)})`;
+
+test('ideas show originator and endorser, and a credited detail is not marked sealed',async()=>{
+  await nav('ideas');
+  const approved=await page.evaluate(cardText('Make meeting rooms work better')+'.innerText');
+  assert.match(approved,/Originator: An Nguyen/);assert.match(approved,/Endorser: Binh Tran/);
+  const endorsed=await page.evaluate(cardText('Automate shift quality checks')+'.innerText');
+  assert.match(endorsed,/Identity sealed/);assert.match(endorsed,/Endorser: Binh Tran/);assert.doesNotMatch(endorsed,/Originator/);
+  await page.evaluate(cardText('Make meeting rooms work better')+'.querySelector("button").click()');
+  const detail=await page.evaluate('document.querySelector("dialog[open]").innerText');
+  assert.match(detail,/Originator: An Nguyen/);assert.doesNotMatch(detail,/Identity sealed/);
+});
+
+test('denials, expiry, round status and audit time are visible',async()=>{
+  await persona('frank');
+  const denial=await page.evaluate('window.VoiceVaultRuntime.castVote("vote-report-102",{decision:"DENY",reason:"Insufficient grounds."})');
+  assert.equal(denial.ok,true);
+  await nav('votes');
+  assert.equal(await page.evaluate('document.querySelectorAll("[data-round-id=vote-report-102] .voter.has-denied").length'),1);
+  assert.match(await page.evaluate('document.querySelector("[data-round-id=vote-report-102]").innerText'),/Frank Vu.*denied/s);
+  assert.match(await page.evaluate('document.querySelector("[data-round-id=vote-report-101] .vote-footnote").innerText'),/Expires \d\d\/\d\d,? \d\d:\d\d/);
+  await nav('overview');
+  assert.match(await page.evaluate('document.querySelector(".round-row[data-round-id=vote-report-102]").innerText'),/Denied/);
+  const first=await page.evaluate('document.querySelector(".round-row").dataset.roundId');
+  const round=await page.evaluate('window.VoiceVaultRuntime.getVotingRequest('+JSON.stringify(first)+').then(r=>r.data)');
+  assert.equal(round.canVote,true,'rounds awaiting the session are listed first');
+  assert.equal(await page.evaluate('document.querySelector(".search-box").hidden'),true);
+  await nav('audit');
+  assert.match(await page.evaluate('document.querySelector(".audit-row time").innerText'),/\d\d\/\d\d,? \d\d:\d\d/);
+});
+
+test('repeated clicks on an action submit it once',async()=>{
+  await persona('binh');await nav('ideas');
+  await page.evaluate(`window.endorseCalls=0;const original=window.VoiceVaultRuntime.endorseIdea;window.VoiceVaultRuntime.endorseIdea=function(){window.endorseCalls++;return original.apply(this,arguments);};
+    const button=document.querySelector('[data-action="endorse"]');button.click();button.click();`);
+  await page.waitFor("document.body.dataset.appState === 'ready' && window.endorseCalls === 1 && !document.querySelector('[data-action=\"endorse\"]')");
+  assert.equal(await page.evaluate('window.endorseCalls'),1);
+  assert.equal(await page.evaluate('document.querySelectorAll(".toast.is-error").length'),0);
+});
+
+test('signed-out persona selector shows no persona and can sign back in',async()=>{
+  await page.click('[aria-label="Sign out"]');await page.waitFor('document.body.dataset.persona === ""');
+  assert.equal(await page.evaluate('document.getElementById("persona-select").value'),'');
+  assert.match(await page.evaluate('document.getElementById("persona-select").selectedOptions[0].textContent'),/Signed out/);
+  await persona('an');
+});
+
+test('a submission that succeeds after its dialog closes still refreshes the list',async()=>{
+  await nav('ideas');await page.click('[data-action="new-idea"]');
+  await page.evaluate(`const original=window.VoiceVaultRuntime.submitIdea;window.VoiceVaultRuntime.submitIdea=function(){const args=arguments,self=this;return new Promise(resolve=>{window.finishSubmit=()=>resolve(original.apply(self,args));});};`);
+  await fill('title','Idea finished after closing');
+  await fill('description','A complete description long enough to pass the validation rules.');
+  await page.evaluate('document.querySelector("dialog form").requestSubmit()');
+  await page.waitFor('typeof window.finishSubmit === "function"');
+  await page.click('dialog [data-dialog-close]');
+  await page.evaluate('window.finishSubmit()');
+  await page.waitFor('document.getElementById("page-content").innerText.includes("Idea finished after closing")');
+});
+
+test('report form requires someone involved, excludes the reporter and sends a retry id',async()=>{
+  await nav('reports');await page.click('[data-action="new-report"]');
+  assert.equal(await page.evaluate('document.querySelectorAll("dialog [name=accused-an]").length'),0);
+  await fill('title','Review the quarterly purchasing process');
+  await fill('evidenceDetails','A synthetic test scenario confirming that a report can be submitted successfully.');
+  await page.evaluate('document.querySelector("dialog [name=consent]").checked=true;document.querySelector("dialog form").requestSubmit()');
+  await page.waitFor('!document.querySelector("dialog .form-error").hidden');
+  assert.equal(await page.evaluate('document.querySelector("dialog .form-error").textContent'),'Select at least one person involved.');
+  await page.evaluate(`const original=window.VoiceVaultRuntime.submitReport;window.VoiceVaultRuntime.submitReport=function(input){window.reportInput=input;return original.apply(this,arguments);};
+    document.querySelector("dialog [name=accused-binh]").checked=true;document.querySelector("dialog form").requestSubmit();`);
+  await page.waitFor('!document.querySelector("dialog[open]")');
+  assert.match(await page.evaluate('window.reportInput.clientRequestId'),/^[0-9a-f]{32}$/);
+});
+
+test('council proposal lists roster differences and rejects inverted voter limits',async()=>{
+  await persona('frank');await nav('council');await page.click('[data-action="new-council-change"]');
+  await fill('minVoters','4');await fill('maxVoters','3');
+  await fill('reason','Add another independent representative for future reviews.');
+  await page.evaluate('document.querySelector("dialog [name=member-mai]").checked=true;document.querySelector("dialog [name=independent-mai]").checked=true;document.querySelector("dialog form").requestSubmit()');
+  await page.waitFor('!document.querySelector("dialog .form-error").hidden');
+  assert.equal(await page.evaluate('document.querySelector("dialog .form-error").textContent'),'Maximum voters must be at least the minimum.');
+  await fill('minVoters','3');await fill('maxVoters','5');
+  await page.evaluate('document.querySelector("dialog form").requestSubmit()');await page.waitFor('!document.querySelector("dialog[open]")');
+  assert.match(await page.evaluate('document.querySelector(".diff-list").innerText'),/Added\s+Mai Tran — Member, independent/);
+});
+
+test('blocked sibling files show a folder-permission hint instead of loading forever',async()=>{
+  const os=require('node:os');
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'voicevault-alone-'));
+  try{
+    fs.copyFileSync(entry,path.join(dir,'index.html'));
+    await page.navigate(pathToFileURL(path.join(dir,'index.html')).href);
+    await page.waitFor("document.body.dataset.appState === 'error'",8000);
+    assert.match(await page.evaluate('document.body.innerText'),/Files and Folders/);
+  }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('READY is visually distinct from APPLIED, and terminal rounds explain themselves',async()=>{
+  const classes=await page.evaluate(`['READY','APPLIED','COLLECTING','APPLYING','STALE'].map(s=>window.VoiceVaultView.badge(s).className)`);
+  assert.equal(new Set(classes.slice(0,4)).size,4,'READY, APPLIED, COLLECTING and APPLYING need distinct styles: '+classes);
+  await persona('frank');
+  await page.evaluate('window.VoiceVaultRuntime.castVote("vote-report-102",{decision:"DENY",reason:"Insufficient grounds."})');
+  for(const id of ['frank','grace']){await persona(id);await page.evaluate('window.VoiceVaultRuntime.castVote("vote-report-103",{decision:"APPROVE",reason:"Context reviewed."})');}
+  for(const id of ['henry','iris']){await persona(id);await page.evaluate('window.VoiceVaultRuntime.castVote("vote-report-103",{decision:"APPROVE",reason:"Context reviewed."})');}
+  await nav('votes');
+  assert.match(await page.evaluate('document.querySelector("[data-round-id=vote-report-103] [data-status-note=READY]").innerText'),/Only the designated recipient/);
+  await persona('frank');await nav('votes');
+  assert.match(await page.evaluate('document.querySelector("[data-round-id=vote-report-102] [data-status-note=DENIED]").innerText'),/A denial ends this round/);
+  const panel=await page.evaluate('document.querySelector("[data-round-id=vote-report-101]").innerText');
+  assert.match(panel,/Simulated selection: 4 voters/);assert.match(panel,/Identity recipient\s+Frank Vu/);assert.match(panel,/Purpose\s+Simulated seed request/);
+});
+
+test('rejected ideas state that identity is not published',async()=>{
+  await persona('chi');
+  const ideas=await page.evaluate('window.VoiceVaultRuntime.listIdeas({}).then(r=>r.data.items)');
+  const target=ideas.find(i=>i.status==='UNDER_REVIEW');
+  assert.equal((await page.evaluate(`window.VoiceVaultRuntime.decideIdea(${JSON.stringify(target.id)},{decision:'REJECT',reason:'Not feasible this year.',expectedVersion:${target.version}})`)).ok,true);
+  await nav('ideas');
+  assert.match(await page.evaluate(cardText(target.title)+'.innerText'),/Identity is not published after rejection/);
+});
+
+test('report detail shows its fixed assignment, or that it was saved while awaiting a jury',async()=>{
+  const report=await page.evaluate(`window.VoiceVaultRuntime.submitReport({title:'Assignment visibility check',evidenceDetails:'Synthetic content for checking how the assignment is shown.',accusedPersonIds:['binh'],consent:true}).then(r=>r.data)`);
+  await persona(report.voters[0].id);await nav('reports');
+  await page.evaluate(`[...document.querySelectorAll('.report-card')].find(card=>card.textContent.includes('Assignment visibility check')).querySelector('button').click()`);
+  assert.match(await page.evaluate('document.querySelector("dialog .assignment").innerText'),new RegExp('N = '+report.voterCount+' · T = '+report.quorumRequired));
+  await persona('an');
+  await page.evaluate('document.getElementById("scenario-select").value="INSUFFICIENT_ELIGIBLE_JURORS";document.getElementById("scenario-select").dispatchEvent(new Event("change",{bubbles:true}))');
+  await page.waitFor("document.body.dataset.appState === 'ready'");
+  await nav('reports');await page.click('[data-action="new-report"]');
+  await fill('title','Report without an eligible jury');
+  await fill('evidenceDetails','Synthetic content checking the saved-but-waiting message.');
+  await page.evaluate('document.querySelector("dialog [name=accused-binh]").checked=true;document.querySelector("dialog [name=consent]").checked=true;document.querySelector("dialog form").requestSubmit()');
+  await page.waitFor('!document.querySelector("dialog[open]")');
+  assert.match(await page.evaluate('document.getElementById("toast-region").innerText'),/Report saved\. It is waiting/);
+});
+
+test('errors and audit events name their enforcement source, and the roster hash is shown',async()=>{
+  await persona('binh');await nav('ideas');
+  await page.evaluate('document.getElementById("scenario-select").value="POLICY_UNAVAILABLE";document.getElementById("scenario-select").dispatchEvent(new Event("change",{bubbles:true}))');
+  await page.waitFor("document.body.dataset.appState === 'ready'");
+  await page.click('[data-action="endorse"]');
+  await page.waitFor('document.querySelector(".toast.is-error")');
+  assert.match(await page.evaluate('document.querySelector(".toast.is-error").innerText'),/POLICY_UNAVAILABLE · SIMULATED/);
+  await page.evaluate('document.getElementById("scenario-select").value="NORMAL";document.getElementById("scenario-select").dispatchEvent(new Event("change",{bubbles:true}))');
+  await nav('audit');
+  assert.match(await page.evaluate('document.querySelector(".info-strip").innerText'),/FABRIC = TideCloak policy/);
+  assert.equal(await page.evaluate('document.querySelector(".audit-row .tag[title]").title'),'Preview only');
+  await nav('council');
+  assert.match(await page.evaluate('document.querySelector(".roster-hash").innerText'),/simulated-roster-v1/);
+});
+
+test('forms start unticked and focused, actions keep focus in the page, and non-member settings are inert',async()=>{
+  await nav('ideas');await page.click('[data-action="new-idea"]');
+  assert.equal(await page.evaluate('document.querySelector("dialog [name=publishCreditOnApproval]").checked'),false,'credit consent must be explicit');
+  assert.equal(await page.evaluate('document.activeElement.name'),'title');
+  await page.click('dialog [data-dialog-close]');
+  await persona('binh');await nav('ideas');
+  await page.evaluate('document.querySelector("[data-action=endorse]").focus();document.querySelector("[data-action=endorse]").click()');
+  await page.waitFor("document.body.dataset.appState === 'ready' && document.querySelector('.toast')");
+  assert.notEqual(await page.evaluate('document.activeElement.tagName'),'BODY');
+  await persona('frank');await nav('council');await page.click('[data-action="new-council-change"]');
+  assert.equal(await page.evaluate('document.querySelector("dialog [name=independent-mai]").disabled'),true);
+  await page.evaluate('const box=document.querySelector("dialog [name=member-mai]");box.checked=true;box.dispatchEvent(new Event("change"))');
+  assert.equal(await page.evaluate('document.querySelector("dialog [name=independent-mai]").disabled'),false);
+});
+
+test('the vote dialog names the record being decided',async()=>{
+  await persona('frank');await nav('votes');
+  await page.click('[data-round-id="vote-report-101"] [data-action="approve-vote"]');
+  assert.match(await page.evaluate('document.querySelector("dialog .context-box strong").textContent'),/Identity review request · Review supplier selection/);
+});
+
+
+// A slow runtime must not let rendering or retries turn missing data into a successful empty result.
+test('search cannot redraw another persona reports while its replacement is loading',async()=>{
+  await nav('reports');
+  const oldTitle=await page.evaluate('document.querySelector(".report-card h3").textContent');
+  await page.evaluate(`const original=window.VoiceVaultRuntime.listReports;window.VoiceVaultRuntime.listReports=function(){const args=arguments;return new Promise(resolve=>{window.finishReports=()=>resolve(original.apply(this,args));});};
+    document.getElementById('persona-select').value='dave';document.getElementById('persona-select').dispatchEvent(new Event('change',{bubbles:true}));`);
+  await page.waitFor('typeof window.finishReports === "function"');
+  await page.evaluate(`const search=document.getElementById('search');search.value='Review';search.dispatchEvent(new Event('input',{bubbles:true}));`);
+  assert.doesNotMatch(await page.evaluate('document.getElementById("page-content").innerText'),new RegExp(oldTitle));
+  assert.equal(await page.evaluate('document.querySelectorAll(".report-card").length'),0);
+  await page.evaluate('window.finishReports()');
+  await page.waitFor('document.body.dataset.persona === "dave" && document.body.dataset.appState === "ready"');
+});
+
+test('unavailable council proposals retain the effective roster without a fake empty result or retry',async()=>{
+  await page.evaluate(`window.VoiceVaultRuntime.listCouncilChanges=async()=>({ok:false,contractVersion:'v1',error:{code:'POLICY_UNAVAILABLE',message:'Council proposals are unavailable in this runtime.',enforcement:'APP',retryable:false}});`);
+  await nav('council');
+  const content=await page.evaluate('document.getElementById("page-content").innerText');
+  assert.match(content,/Frank Vu/);assert.match(content,/Council proposals are unavailable/);assert.match(content,/POLICY_UNAVAILABLE/);assert.doesNotMatch(content,/No change proposals yet/);
+  assert.equal(await page.evaluate('[...document.querySelectorAll("#page-content button")].filter(b=>b.textContent==="Try again").length'),0);
+});
+
+test('retryable council proposal errors can recover without hiding the roster',async()=>{
+  await page.evaluate(`const original=window.VoiceVaultRuntime.listCouncilChanges;let failed=false;window.VoiceVaultRuntime.listCouncilChanges=function(){if(!failed){failed=true;return Promise.resolve({ok:false,contractVersion:'v1',error:{code:'POLICY_UNAVAILABLE',message:'Proposal service interrupted.',enforcement:'APP',retryable:true}});}return original.apply(this,arguments);};`);
+  await nav('council');
+  assert.match(await page.evaluate('document.getElementById("page-content").innerText'),/Proposal service interrupted/);
+  await page.evaluate('[...document.querySelectorAll("#page-content button")].find(b=>b.textContent==="Try again").click()');
+  await page.waitFor('document.body.dataset.appState === "ready" && document.getElementById("page-content").innerText.includes("No change proposals yet")');
+  assert.equal(await page.evaluate('document.querySelectorAll(".member-card").length'),5);
+});
+
+test('overview marks failed report and council activity unavailable instead of reporting zero',async()=>{
+  await page.evaluate(`for(const name of ['listReports','listCouncilChanges'])window.VoiceVaultRuntime[name]=async()=>({ok:false,contractVersion:'v1',error:{code:'POLICY_UNAVAILABLE',message:name+' unavailable.',enforcement:'APP',retryable:false}});`);
+  await nav('overview');
+  assert.equal(await page.evaluate('document.querySelector("[data-metric-page=reports] .metric-value").textContent'),'—');
+  assert.equal(await page.evaluate('document.querySelector("[data-metric-page=votes] .metric-value").textContent'),'—');
+  const content=await page.evaluate('document.getElementById("page-content").innerText');
+  assert.match(content,/listReports unavailable/);assert.match(content,/listCouncilChanges unavailable/);assert.doesNotMatch(content,/0 visible rounds|No voting rounds yet/);
+  assert.ok(await page.evaluate('document.querySelectorAll(".recent-row").length')>0);
+});
+
+test('voting retains report rounds when council activity is unavailable',async()=>{
+  await persona('frank');
+  await page.evaluate(`window.VoiceVaultRuntime.listCouncilChanges=async()=>({ok:false,contractVersion:'v1',error:{code:'POLICY_UNAVAILABLE',message:'Council voting unavailable.',enforcement:'APP',retryable:false}});`);
+  await nav('votes');
+  assert.ok(await page.evaluate('document.querySelectorAll(".vote-card").length')>0);
+  assert.match(await page.evaluate('document.getElementById("page-content").innerText'),/Council voting unavailable/);
+});
+
+async function readyCouncil(){
+  await persona('frank');
+  await page.evaluate(`(async()=>{const runtime=window.VoiceVaultRuntime,council=(await runtime.getCouncil()).data;
+    const proposal=await runtime.submitCouncilChange({expectedCouncilVersion:1,reason:'Add an independent representative for this review.',proposedMembers:council.members.map(m=>({subject:m.subject,active:m.active,independent:m.independent,membershipRole:m.membershipRole})).concat([{subject:'mai',active:true,independent:true,membershipRole:'MEMBER'}]),proposedSelectionPolicy:council.selectionPolicy});
+    if(!proposal.ok)throw new Error(proposal.error.code);window.readyChange=proposal.data;
+    for(const voter of proposal.data.voting.voters){await runtime.login(voter.id);await runtime.castVote(proposal.data.voting.id,{decision:'APPROVE',reason:'Reviewed the proposed roster.'});}
+    await runtime.login('frank');})()`);
+  await nav('council');
+}
+
+test('council application needs confirmation and cancel preserves the roster',async()=>{
+  await readyCouncil();await page.click('[data-action="apply-council"]');
+  assert.match(await page.evaluate('document.querySelector("dialog[open]").innerText'),/Every other open voting round.*becomes stale/s);
+  assert.equal(await page.evaluate('window.VoiceVaultRuntime.getCouncil().then(r=>r.data.version)'),1);
+  await page.evaluate('[...document.querySelectorAll("dialog button")].find(b=>b.textContent==="Cancel").click()');
+  assert.equal(await page.evaluate('document.querySelector("dialog").open'),false);
+  assert.equal(await page.evaluate('window.VoiceVaultRuntime.getCouncil().then(r=>r.data.version)'),1);
+  await page.click('[data-action="apply-council"]');
+  await page.evaluate('document.querySelector("dialog form").requestSubmit()');
+  await page.waitFor('document.body.dataset.appState === "ready" && !document.querySelector("dialog").open');
+  assert.equal(await page.evaluate('window.VoiceVaultRuntime.getCouncil().then(r=>r.data.version)'),2);
+  assert.match(await page.evaluate('document.getElementById("toast-region").innerText'),/Roster v2 is now in effect/);
+});
+
+test('pending council application submits once and does not claim the roster is effective',async()=>{
+  await readyCouncil();
+  await page.evaluate(`window.applyCalls=0;const originalList=window.VoiceVaultRuntime.listCouncilChanges;window.VoiceVaultRuntime.listCouncilChanges=async function(){const result=await originalList.apply(this,arguments);if(window.applyPending)for(const change of result.data.items){if(change.id===window.readyChange.id){change.status='APPLYING';change.capabilities.canApply=false;}}return result;};
+    window.VoiceVaultRuntime.applyCouncilChange=function(){window.applyCalls++;return new Promise(resolve=>{window.finishApply=()=>{window.applyPending=true;resolve({ok:true,contractVersion:'v1',data:{...window.readyChange,status:'APPLYING'}});};});};`);
+  await page.click('[data-action="apply-council"]');
+  await page.evaluate('const form=document.querySelector("dialog form");form.requestSubmit();form.requestSubmit()');
+  assert.equal(await page.evaluate('window.applyCalls'),1);
+  assert.equal(await page.evaluate('document.querySelector("dialog [type=submit]").disabled'),true);
+  await page.evaluate('window.finishApply()');
+  await page.waitFor('document.body.dataset.appState === "ready" && !document.querySelector("dialog").open');
+  const toast=await page.evaluate('document.getElementById("toast-region").innerText');
+  assert.match(toast,/applying|application.*pending/i);assert.doesNotMatch(toast,/now in effect/);
+  assert.equal(await page.evaluate('window.VoiceVaultRuntime.getCouncil().then(r=>r.data.version)'),1);
+  assert.ok(await page.evaluate('document.querySelector(".change-card [data-status=APPLYING]")'));
+});
+
+test('the full production roster hash fits a phone viewport',async()=>{
+  await page.command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+  await page.evaluate(`const original=window.VoiceVaultRuntime.getCouncil;window.VoiceVaultRuntime.getCouncil=async function(){const result=await original.apply(this,arguments);result.data.rosterHash='0123456789abcdef'.repeat(4);return result;};`);
+  await nav('council');
+  assert.equal(await page.evaluate('document.querySelector(".roster-hash code").textContent.length'),64);
+  assert.equal(await page.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'),true);
+});
+
+test('the compact council editor focuses its first membership checkbox and fits at 390px',async()=>{
+  await page.command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+  await persona('frank');await nav('council');await page.click('[data-action="new-council-change"]');
+  assert.equal(await page.evaluate('document.activeElement.name'),'member-an');
+  assert.equal(await page.evaluate('document.activeElement.type'),'checkbox');
+  assert.equal(await page.evaluate('const dialog=document.querySelector("dialog");dialog.scrollWidth<=dialog.clientWidth'),true);
+  await page.evaluate('const member=document.querySelector("dialog [name=member-mai]");member.click();document.querySelector("dialog [name=independent-mai]").focus()');
+  assert.equal(await page.evaluate('document.activeElement.name'),'independent-mai');
+  assert.equal(await page.evaluate('document.querySelector("dialog [name=independent-mai]").disabled'),false);
+  assert.equal(await page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'),true);
+});
+
+
+test('a failed directory disables dependent forms and shows its error without hiding existing records',async()=>{
+  await persona('frank');
+  await page.evaluate(`window.VoiceVaultRuntime.getDirectory=async()=>({ok:false,contractVersion:'v1',error:{code:'POLICY_UNAVAILABLE',message:'People directory unavailable.',enforcement:'APP',retryable:false}});`);
+  await nav('reports');
+  assert.ok(await page.evaluate('document.querySelectorAll(".report-card").length')>0);
+  assert.match(await page.evaluate('document.getElementById("page-content").innerText'),/People directory unavailable/);
+  assert.equal(await page.evaluate('document.querySelector("[data-action=new-report]").disabled'),true);
+  await nav('council');
+  assert.equal(await page.evaluate('document.querySelector("[data-action=new-council-change]").disabled'),true);
+  assert.equal(await page.evaluate('document.querySelectorAll(".member-card").length'),5);
+});
+
+
+test('vote, idea decision and identity purpose fields stop at the API reason limit',async()=>{
+  async function typeReason(name){
+    await page.evaluate('document.querySelector("dialog [name='+name+']").focus()');
+    await page.command('Input.insertText',{text:'x'.repeat(1001)});
+    assert.equal(await page.evaluate('document.querySelector("dialog [name='+name+']").value.length'),1000);
+    await page.click('dialog [data-dialog-close]');
+  }
+  await persona('frank');await nav('votes');
+  await page.click('[data-round-id="vote-report-101"] [data-action="approve-vote"]');
+  await typeReason('reason');
+  await persona('chi');await nav('ideas');
+  await page.evaluate('[...document.querySelectorAll(".idea-card button")].find(b=>b.textContent==="Reject").click()');
+  await typeReason('reason');
+  await persona('an');
+  const report=await page.evaluate(`window.VoiceVaultRuntime.submitReport({title:'Identity purpose boundary check',evidenceDetails:'Synthetic evidence for checking the identity purpose length.',accusedPersonIds:['binh'],consent:true}).then(r=>r.data)`);
+  await persona(report.voters[0].id);await nav('reports');
+  await page.evaluate('[...document.querySelectorAll(".report-card")].find(card=>card.textContent.includes("Identity purpose boundary check")).querySelector("button").click()');
+  await page.click('dialog [data-action="request-unmask"]');
+  await typeReason('purpose');
+});
+
+test('a report without optional voter summaries still opens its fixed assignment',async()=>{
+  await page.evaluate(`(async()=>{await window.VoiceVaultRuntime.submitReport({title:'Assignment summaries not supplied',evidenceDetails:'Synthetic evidence for checking an older compatible report response.',accusedPersonIds:['binh'],consent:true});
+    const original=window.VoiceVaultRuntime.listReports;window.VoiceVaultRuntime.listReports=async function(){const result=await original.apply(this,arguments);for(const report of result.data.items)delete report.voters;return result;};})()`);
+  await nav('reports');
+  await page.evaluate('[...document.querySelectorAll(".report-card")].find(card=>card.textContent.includes("Assignment summaries not supplied")).querySelector("button").click()');
+  assert.equal(await page.evaluate('document.querySelector("dialog").open'),true);
+  assert.match(await page.evaluate('document.querySelector("dialog .assignment").innerText'),/N = [345] · T = [234]/);
+  assert.match(await page.evaluate('document.querySelector("dialog .assignment").innerText'),/Voter names.*unavailable/);
+  assert.deepEqual(page.errors,[]);
+});
