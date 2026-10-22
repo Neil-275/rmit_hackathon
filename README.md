@@ -1,4 +1,4 @@
-> **Trạng thái dự án:** WIP. Tích hợp Tide LIVE chưa hoàn tất.
+
 
 ## Run the current UI
 
