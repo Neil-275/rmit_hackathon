@@ -1,3 +1,8 @@
 my-app
 tidecloak-data
 web
+node_modules/
+.env
+.env.*
+!.env.example
+public/integration/runtime.generated.js

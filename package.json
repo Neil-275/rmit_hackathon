@@ -1,0 +1,12 @@
+{
+  "name": "voicevault",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test:p0": "node --test tests/p0/",
+    "test:ui:file": "node --test tests/p0/ui-file.smoke.test.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "26.1.0"
+  }
+}
